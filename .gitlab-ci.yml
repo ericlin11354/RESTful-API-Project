@@ -1,4 +1,4 @@
-image: go:latest
+image: golang:latest
 
 variables:
   REPO_NAME: gitlab.com/csc301-assignments/a2
