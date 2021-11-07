@@ -1,0 +1,34 @@
+image: go:latest
+
+variables:
+  REPO_NAME: gitlab.com/csc301-assignments/a2
+
+before_script:
+  - mkdir -p $GOPATH/src/$(dirname $REPO_NAME)
+  - ln -svf $CI_PROJECT_DIR $GOPATH/src/$REPO_NAME
+  - cd $GOPATH/src/$REPO_NAME
+
+  # Creating .env
+  - cat $ENV_DEV > .env
+
+stages:
+  - build
+  - test
+  - deploy
+
+build:
+  stage: build
+  script:
+    - echo build
+
+test:
+  stage: test
+  script:
+    - go fmt $(go list ./... | grep -v /vendor/)
+    - go vet $(go list ./... | grep -v /vendor/)
+    - go test -race $(go list ./... | grep -v /vendor/)
+
+deploy:
+  stage: deploy
+  script:
+    - echo deploy
