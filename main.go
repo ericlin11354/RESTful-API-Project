@@ -2,9 +2,8 @@ package main
 
 import (
 	// Built-ins
-	"encoding/csv"
+
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -12,6 +11,9 @@ import (
 	// External imports
 	"github.com/go-chi/chi"
 	_ "github.com/go-chi/chi"
+
+	// Internal imports
+	"gitlab.com/csc301-assignments/a2/internal/dailyReports"
 )
 
 func main() {
@@ -33,32 +35,7 @@ func main() {
 		}
 	})
 
-	router.Post("/test", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/csv")
-		reader := csv.NewReader(r.Body)
-
-		body := ""
-		for {
-			result, err := reader.Read()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			for i := range result {
-				body += result[i] + " "
-			}
-			body += "\n"
-
-			fmt.Println(result)
-		}
-
-		if _, err := w.Write([]byte(body)); err != nil {
-			log.Fatal(err)
-		}
-	})
+	router.Mount("/daily_reports", dailyReports.Routes())
 
 	log.Printf("Listening for requests on http://localhost:%s/", port)
 	log.Fatal(http.ListenAndServe(":"+port, router))
