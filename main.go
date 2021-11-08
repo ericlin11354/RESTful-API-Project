@@ -4,6 +4,7 @@ import (
 	// Built-ins
 	"encoding/csv"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -35,13 +36,23 @@ func main() {
 	router.Post("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/csv")
 		reader := csv.NewReader(r.Body)
-		header, err := reader.Read()
-		if err != nil {
-			log.Fatal(err)
-		}
+
 		body := ""
-		for i := range header {
-			body += header[i]
+		for {
+			result, err := reader.Read()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			for i := range result {
+				body += result[i] + " "
+			}
+			body += "\n"
+
+			fmt.Println(result)
 		}
 
 		if _, err := w.Write([]byte(body)); err != nil {
