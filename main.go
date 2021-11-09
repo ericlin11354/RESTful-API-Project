@@ -10,10 +10,10 @@ import (
 
 	// External imports
 	"github.com/go-chi/chi"
-	_ "github.com/go-chi/chi"
 
 	// Internal imports
 	"gitlab.com/csc301-assignments/a2/internal/dailyReports"
+	"gitlab.com/csc301-assignments/a2/internal/timeSeries"
 )
 
 func main() {
@@ -35,6 +35,7 @@ func main() {
 		}
 	})
 
+	router.Mount("/time_series", timeSeries.Routes())
 	router.Mount("/daily_reports", dailyReports.Routes())
 
 	log.Printf("Listening for requests on http://localhost:%s/", port)
