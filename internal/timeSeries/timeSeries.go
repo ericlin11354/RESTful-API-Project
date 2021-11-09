@@ -3,10 +3,12 @@ package timeSeries
 import (
 	// Built-ins
 
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	// External imports
@@ -17,11 +19,11 @@ import (
 )
 
 type TimeSeries struct {
-	ID         string `json:"ID"`
-	Admin2     string `json:"Admin2"`
-	Address1   string `json:"Province/State"`
-	Address2   string `json:"Country/Region"`
-	Population int    `json:"Population"`
+	ID         string         `json:"ID"`
+	Admin2     sql.NullString `json:"Admin2"`
+	Address1   sql.NullString `json:"Province/State"`
+	Address2   sql.NullString `json:"Country/Region"`
+	Population sql.NullInt64  `json:"Population"`
 
 	Confirmed map[time.Time]int `json:"Confirmed"`
 	Death     map[time.Time]int `json:"Death"`
@@ -47,21 +49,42 @@ func List(w http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
 
 	query := `
-		SELECT TimeSeries.ID, Admin2, Address1, Address2, Population
-		FROM TimeSeries JOIN TimeSeriesDate
-		ON TimeSeries.ID = TimeSeriesDate.ID
+	SELECT TimeSeries.ID, Admin2, Address1, Address2, Population
+	FROM TimeSeries JOIN TimeSeriesDate
+	ON TimeSeries.ID = TimeSeriesDate.ID
 	`
 	i := 0
 	for param, value := range params {
-		// TODO: Query
-		if param == "combined_keys" {
-			// TODO: string split -> match with admin2, add1, and add2
+		param = strings.ToLower(param)
+
+		// Time interval
+		op := "="
+		if param == "from" {
+			param = "Date"
+			op = ">="
 		}
+		if param == "to" {
+			param = "Date"
+			op = "<="
+		}
+
+		// Format string for SQL
+		stringParams := map[string]string{
+			"admin2":   fmt.Sprintf(`'%s'`, value[0]),
+			"address1": fmt.Sprintf(`'%s'`, value[0]),
+			"address2": fmt.Sprintf(`'%s'`, value[0]),
+		}
+		_, ok := stringParams[param]
+		if ok {
+			value[0] = stringParams[param]
+		}
+
+		// Format first param and after
 		if i == 0 {
-			query += "\nWHERE " + param + "=" + value[0]
+			query += "\nWHERE " + param + op + value[0]
 			i++
 		} else {
-			query += " AND " + param + "=" + value[0]
+			query += " AND " + param + op + value[0]
 		}
 	}
 	stmt, err := db.Db.Prepare(query)
@@ -85,6 +108,9 @@ func List(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Fatal(err)
 		}
+		ts.Confirmed = map[time.Time]int{}
+		ts.Death = map[time.Time]int{}
+		ts.Recovered = map[time.Time]int{}
 		tsArr = append(tsArr, ts)
 	}
 
