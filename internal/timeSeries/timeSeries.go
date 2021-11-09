@@ -19,11 +19,10 @@ import (
 )
 
 type TimeSeries struct {
-	ID         string         `json:"ID"`
-	Admin2     sql.NullString `json:"Admin2"`
-	Address1   sql.NullString `json:"Province/State"`
-	Address2   sql.NullString `json:"Country/Region"`
-	Population sql.NullInt64  `json:"Population"`
+	ID       string `json:"ID"`
+	Admin2   string `json:"Admin2"`
+	Address1 string `json:"Province/State"`
+	Address2 string `json:"Country/Region"`
 
 	Confirmed map[time.Time]int `json:"Confirmed"`
 	Death     map[time.Time]int `json:"Death"`
@@ -45,46 +44,97 @@ func Routes() chi.Router {
 	return r
 }
 
+func paramValidate(param string) (string, bool) {
+	validator := map[string]string{
+		"id":       "id",
+		"admin2":   "admin2",
+		"province": "address1",
+		"state":    "address1",
+		"country":  "address2",
+		"region":   "address2",
+		"date":     "date",
+		"from":     "from",
+		"to":       "to",
+	}
+	result, ok := validator[param]
+	return result, ok
+}
+
+func nullHandler(ts *TimeSeries, values map[string]*sql.NullString) {
+	ts.ID = values["id"].String
+	if values["admin2"].Valid {
+		ts.Admin2 = values["admin2"].String
+	}
+	if values["address1"].Valid {
+		ts.Address1 = values["address1"].String
+	}
+	if values["address2"].Valid {
+		ts.Address2 = values["address2"].String
+	}
+}
+
 func List(w http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
 
 	query := `
-	SELECT TimeSeries.ID, Admin2, Address1, Address2, Population
-	FROM TimeSeries JOIN TimeSeriesDate
-	ON TimeSeries.ID = TimeSeriesDate.ID
+		SELECT TimeSeries.ID, Admin2, Address1, Address2
+		FROM TimeSeries JOIN TimeSeriesDate
+		ON TimeSeries.ID = TimeSeriesDate.ID
 	`
+
 	i := 0
 	for param, value := range params {
 		param = strings.ToLower(param)
 
+		var valid bool
+		if param, valid = paramValidate(param); !valid {
+			w.WriteHeader(400)
+			if _, err := w.Write([]byte("Error 400: Invalid Input")); err != nil {
+				log.Fatal(err)
+			}
+			return
+		}
+
 		// Time interval
 		op := "="
 		if param == "from" {
-			param = "Date"
+			param = "date"
 			op = ">="
 		}
 		if param == "to" {
-			param = "Date"
+			param = "date"
 			op = "<="
 		}
 
-		// Format string for SQL
-		stringParams := map[string]string{
-			"admin2":   fmt.Sprintf(`'%s'`, value[0]),
-			"address1": fmt.Sprintf(`'%s'`, value[0]),
-			"address2": fmt.Sprintf(`'%s'`, value[0]),
-		}
-		_, ok := stringParams[param]
-		if ok {
-			value[0] = stringParams[param]
-		}
+		value := strings.Split(value[0], ",")
 
-		// Format first param and after
-		if i == 0 {
-			query += "\nWHERE " + param + op + value[0]
-			i++
-		} else {
-			query += " AND " + param + op + value[0]
+		for j, v := range value {
+			// Format string for SQL
+			stringParams := map[string]string{
+				"admin2":   fmt.Sprintf(`'%s'`, v),
+				"address1": fmt.Sprintf(`'%s'`, v),
+				"address2": fmt.Sprintf(`'%s'`, v),
+				"date":     fmt.Sprintf(`'%s'`, v),
+				"from":     fmt.Sprintf(`'%s'`, v),
+				"to":       fmt.Sprintf(`'%s'`, v),
+			}
+			_, ok := stringParams[param]
+			if ok {
+				value[j] = stringParams[param]
+			}
+
+			// Format first param and after
+			if i == 0 {
+				query += "WHERE " + param + op + value[j]
+				i++
+			} else {
+				if j != 0 {
+					query += " OR " + param + op + value[j]
+				} else {
+					query += " AND " + param + op + value[j]
+				}
+
+			}
 		}
 	}
 	stmt, err := db.Db.Prepare(query)
@@ -104,10 +154,17 @@ func List(w http.ResponseWriter, r *http.Request) {
 	tsArr := []TimeSeries{}
 	for row.Next() {
 		ts := TimeSeries{}
-		err := row.Scan(&ts.ID, &ts.Admin2, &ts.Address1, &ts.Address2, &ts.Population)
+		temp := map[string]*sql.NullString{}
+		temp["id"] = &sql.NullString{}
+		temp["admin2"] = &sql.NullString{}
+		temp["address1"] = &sql.NullString{}
+		temp["address2"] = &sql.NullString{}
+		err := row.Scan(temp["id"], temp["admin2"], temp["address1"], temp["address2"])
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		nullHandler(&ts, temp)
 		ts.Confirmed = map[time.Time]int{}
 		ts.Death = map[time.Time]int{}
 		ts.Recovered = map[time.Time]int{}
@@ -144,9 +201,18 @@ func List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if r.Header.Get("Accept") == "text/csv" {
+		fmt.Println("CSV pain :<")
+		// TODO: Convert json to csv somehow
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
 	if err = json.NewEncoder(w).Encode(tsArr); err != nil {
 		log.Fatal(err)
 	}
+
+	w.WriteHeader(200)
 }
 
 func Create(w http.ResponseWriter, r *http.Request) {
@@ -182,12 +248,12 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	// 	*/
 
 	// 	// Assuming that we have successfully parsed to a TimeSeries struct
-	// 	stmt, err := db.Db.Prepare("INSERT INTO TimeSeries(Admin2, Address1, Address2, Population) VALUES(?,?,?,?)")
+	// 	stmt, err := db.Db.Prepare("INSERT INTO TimeSeries(Admin2, Address1, Address2) VALUES(?,?,?,?)")
 	// 	if err != nil {
 	// 		log.Fatal(err)
 	// 	}
 
-	// 	res, err := stmt.Exec(ts.Admin2, ts.Address1, ts.Address2, ts.Population)
+	// 	res, err := stmt.Exec(ts.Admin2, ts.Address1, ts.Address2)
 	// 	if err != nil {
 	// 		log.Fatal(err)
 	// 	}
@@ -206,7 +272,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	// 	1. Dates are contiguous.
 	// 	2. The only column values with '/' are dates.
 	// 	*/
-	// 	colNames, err := db.Db.Query("SELECT Admin2, Address1, Address2, Population FROM TimeSeries")
+	// 	colNames, err := db.Db.Query("SELECT Admin2, Address1, Address2 FROM TimeSeries")
 	// 	if err != nil {
 	// 		log.Fatal(err)
 	// 	}
