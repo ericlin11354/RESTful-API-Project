@@ -14,22 +14,9 @@ import (
 
 var Db *sql.DB
 
-func InitDb(envNames ...string) {
-	// Establish connection with db
-	if len(envNames) == 0 { // use default path (.env)
-		if err := godotenv.Load(); err != nil {
-			log.Fatal(err)
-		}
-	} else {
-		for _, path := range envNames { // looping until
-			fmt.Println("Path: ", path)
-			if err := godotenv.Load(path); err != nil {
-				continue
-			} else {
-				break
-			}
-		}
-		log.Fatal("No valid .env found")
+func InitDb() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatal(err)
 	}
 
 	// Reading variables from .env
@@ -41,6 +28,8 @@ func InitDb(envNames ...string) {
 		dbName    = os.Getenv("DB_NAME") // e.g. 'my-database'
 	)
 	dbURI := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", dbUser, dbPwd, dbTCPHost, dbPort, dbName)
+
+	fmt.Println("DB LINK:", dbURI)
 
 	db, err := sql.Open("mysql", dbURI)
 	if err != nil {
