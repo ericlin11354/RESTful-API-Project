@@ -8,35 +8,28 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	// External imports
 	"github.com/go-chi/chi"
 )
 
 type DailyReports struct {
-	ID          string `json:"id"`
-	Admin2      string `json:"Admin2"`
-	Address1    string `json:"Province/State"`
-	Address2    string `json:"Country/Region"`
-	CombinedKey string `json:"CombinedKey"`
-	Confirmed   int    `json:"Confirmed"`
-	Deaths      int    `json:"Deaths"`
-	Recovered   int    `json:"Recovered"`
-	Active      int    `json:"Active"`
+	ID        string    `json:"id"`
+	Admin2    string    `json:"Admin2"`
+	Address1  string    `json:"Province/State"`
+	Address2  string    `json:"Country/Region"`
+	Date      time.Time `json:"Date"`
+	Confirmed int       `json:"Confirmed"`
+	Deaths    int       `json:"Deaths"`
+	Recovered int       `json:"Recovered"`
+	Active    int       `json:"Active"`
 }
 
 func Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", List)
 	r.Post("/", Create)
-
-	r.Route("/{id}", func(r chi.Router) {
-		r.Use(DailyReportCtx)
-		r.Get("/", Get)
-		r.Put("/", Update)
-		// r.Delete("/", rs.Delete)
-
-	})
 
 	return r
 }

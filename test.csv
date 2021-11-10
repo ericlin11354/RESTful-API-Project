@@ -1,3 +1,6 @@
 First Name,Family Name,UwU
 Supanat,Wangsutthitham,Weeb
 Eric,Lin,Nerd
+
+Province/State,Country/Region,Lat,Long,1/22/20,1/23/20,1/24/20,1/25/20,1/26/20, ....
+FIPS,Admin2,Province_State,Country_Region,Last_Update,Lat,Long_,Confirmed,Deaths,Recovered,Active,Combined_Key,Incidence_Rate,Case-Fatality_Ratio

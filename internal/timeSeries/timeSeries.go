@@ -3,11 +3,14 @@ package timeSeries
 import (
 	// Built-ins
 
+	"bytes"
 	"database/sql"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -77,7 +80,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
 
 	query := `
-		SELECT TimeSeries.ID, Admin2, Address1, Address2
+		SELECT DISTINCT TimeSeries.ID, Admin2, Address1, Address2
 		FROM TimeSeries JOIN TimeSeriesDate
 		ON TimeSeries.ID = TimeSeriesDate.ID
 	`
@@ -154,6 +157,8 @@ func List(w http.ResponseWriter, r *http.Request) {
 	tsArr := []TimeSeries{}
 	for row.Next() {
 		ts := TimeSeries{}
+
+		// Handling null values
 		temp := map[string]*sql.NullString{}
 		temp["id"] = &sql.NullString{}
 		temp["admin2"] = &sql.NullString{}
@@ -163,14 +168,16 @@ func List(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Fatal(err)
 		}
-
 		nullHandler(&ts, temp)
+
+		// Initializing empty maps (to be filled)
 		ts.Confirmed = map[time.Time]int{}
 		ts.Death = map[time.Time]int{}
 		ts.Recovered = map[time.Time]int{}
 		tsArr = append(tsArr, ts)
 	}
 
+	// Filling maps
 	for _, ts := range tsArr {
 		query := fmt.Sprintf(`
 			SELECT Date, Confirmed, Death, Recovered FROM TimeSeriesDate
@@ -208,8 +215,33 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 	if r.Header.Get("Accept") == "text/csv" {
 		w.Header().Set("Content-Type", "text/csv")
-		fmt.Println("Converting to CSV")
-		// TODO: Convert json to csv somehow
+
+		b := new(bytes.Buffer)
+		writer := csv.NewWriter(b)
+		csvArr := [][]string{
+			{"ID", "Date", "Confirmed", "Death", "Recovered"},
+		}
+
+		// Filling in respond in csv format
+		for _, ts := range tsArr {
+			for date := range ts.Confirmed {
+				row := []string{
+					ts.ID,
+					date.Format("2006/01/02"),
+					strconv.Itoa(ts.Confirmed[date]),
+					strconv.Itoa(ts.Death[date]),
+					strconv.Itoa(ts.Recovered[date]),
+				}
+				csvArr = append(csvArr, row)
+			}
+		}
+		if err := writer.WriteAll(csvArr); err != nil {
+			log.Fatal(err)
+		}
+
+		if _, err := w.Write(b.Bytes()); err != nil {
+			log.Fatal(err)
+		}
 
 	} else {
 		w.Header().Set("Content-Type", "application/json")
@@ -254,7 +286,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	// 	*/
 
 	// 	// Assuming that we have successfully parsed to a TimeSeries struct
-	// 	stmt, err := db.Db.Prepare("INSERT INTO TimeSeries(Admin2, Address1, Address2) VALUES(?,?,?,?)")
+	// 	stmt, err := db.Db.Prepare("INSERT INTO TimeSeries(Admin2, Address1, Address2) VALUES(?,?,?)")
 	// 	if err != nil {
 	// 		log.Fatal(err)
 	// 	}

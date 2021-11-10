@@ -18,3 +18,16 @@ CREATE TABLE TimeSeriesDate(
 	Primary Key (ID, Date),
 	FOREIGN KEY (ID) REFERENCES TimeSeries(ID)
 );
+
+CREATE TABLE DailyReports(
+	ID INT AUTO_INCREMENT,
+	Date Date NOT NULL,
+	Admin2 TEXT,
+	Address1 TEXT,
+	Address2 TEXT,
+	Confirmed INT,
+	Deaths INT,
+	Recovered INT,
+	Active INT,
+	primary key(ID)
+);
