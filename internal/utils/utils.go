@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -29,6 +30,9 @@ Takes Date string and returns type Date as type time.Time
 */
 func ParseDate(date string) (time.Time, error) {
 	temp := strings.Split(date, "/") // i.e. "1/23/20" -> [ "1", "23", "20" ]
+	if len(temp) != 3 {
+		return time.Time{}, errors.New("Syntax Error")
+	}
 	year, err := strconv.Atoi("20" + temp[2])
 	if err != nil {
 		return time.Time{}, err

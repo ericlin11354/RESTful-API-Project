@@ -9,11 +9,25 @@ CREATE TABLE TimeSeries(
 	primary key(ID)
 );
 
-CREATE TABLE TimeSeriesDate(
+CREATE TABLE TimeSeriesConfirmed(
 	ID INT,
 	Date Date,
 	Confirmed INT,
+	Primary Key (ID, Date),
+	FOREIGN KEY (ID) REFERENCES TimeSeries(ID)
+);
+
+CREATE TABLE TimeSeriesDeath(
+	ID INT,
+	Date Date,
 	Death INT,
+	Primary Key (ID, Date),
+	FOREIGN KEY (ID) REFERENCES TimeSeries(ID)
+);
+
+CREATE TABLE TimeSeriesRecovered(
+	ID INT,
+	Date Date,
 	Recovered INT,
 	Primary Key (ID, Date),
 	FOREIGN KEY (ID) REFERENCES TimeSeries(ID)

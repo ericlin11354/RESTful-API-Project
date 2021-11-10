@@ -108,6 +108,15 @@ func List(w http.ResponseWriter, r *http.Request) {
 			}
 			_, ok := stringParams[param]
 			if ok {
+				if param == "date" || param == "from" || param == "to" {
+					if _, err := utils.ParseDate(v); err != nil {
+						w.WriteHeader(400)
+						if _, err := w.Write([]byte("Error 400: Invalid Input")); err != nil {
+							log.Fatal(err)
+						}
+						return
+					}
+				}
 				value[j] = stringParams[param]
 			}
 
@@ -255,6 +264,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	var endDate time.Time
 	beginFlag := false // true -> beginDate found; false Otherwise
 	endFlag := false
+	// Broken
 	for i := range result {
 		if !beginFlag && strings.Contains(result[i], "/") {
 			beginDate = ParseDate(result[i]) // parses Date string -> time.Time
@@ -265,6 +275,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			endFlag = true
 		}
 	}
+
 	for {
 		result, err = reader.Read()
 		fmt.Println("lets read")
