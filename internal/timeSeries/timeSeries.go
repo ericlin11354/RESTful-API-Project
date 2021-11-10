@@ -284,7 +284,6 @@ func List(w http.ResponseWriter, r *http.Request) {
 func Create(w http.ResponseWriter, r *http.Request) {
 	filetype := r.Header.Get("FileType") // i.e. Recovered, Confirms, Deaths
 	ts := TimeSeries{}
-
 	reader := csv.NewReader(r.Body)
 
 	fmt.Println("running Create()")
@@ -324,18 +323,14 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			endFlag = true
 		}
 	}
-
 	for i := range result {
 		switch result[i] {
 		case "Admin2":
 			Admin2Index = i
-			break
 		case "Province/State":
 			Address1Index = i
-			break
 		case "Country/Region":
 			Address2Index = i
-			break
 		}
 	}
 	for {
@@ -367,29 +362,32 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			log.Fatal(err)
 		}
 
+		ts.Confirmed = make(map[time.Time]int)
+		ts.Death = make(map[time.Time]int)
+		ts.Recovered = make(map[time.Time]int)
+
 		dateIndex := beginDateIndex
 		for date := beginDate; date != endDate.Add(time.Hour*24); date = date.AddDate(0, 0, 1) { // iterate between beginDate and endDate inclusive, incrementing by 1 Day
 			val, err := strconv.Atoi(result[dateIndex])
 			if err != nil {
 				log.Fatal(err)
 			}
+			//fmt.Printf("hewwo %v\n", date.String())
 			switch filetype {
 			case "Confirmed":
 				ts.Confirmed[date] = val
 				_, err = stmt.Exec(id, date, ts.Confirmed[date])
-				break
-			case "Deaths":
+			case "Death":
 				ts.Death[date] = val
 				_, err = stmt.Exec(id, date, ts.Death[date])
-				break
 			case "Recovered":
 				ts.Recovered[date] = val
 				_, err = stmt.Exec(id, date, ts.Recovered[date])
-				break
 			}
 			if err != nil {
 				log.Fatal(err)
 			}
+			dateIndex++
 			//fmt.Println(date.String())
 		}
 	}
