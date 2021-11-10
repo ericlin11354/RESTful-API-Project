@@ -202,7 +202,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Directly access column values
-	var Admin2Index int
+	var Admin2Index int = -1
 	var Address1Index int
 	var Address2Index int
 	var beginDateIndex int
@@ -230,6 +230,21 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			endFlag = true
 		}
 	}
+
+	// Check for duplicate dates
+	allKeys := make(map[string]bool)
+	//fmt.Println(len(result))
+	for i := beginDateIndex; i < len(result); i++ {
+		//fmt.Println(allKeys)
+		if value := allKeys[result[i]]; !value {
+			allKeys[result[i]] = true
+		} else { // duplicate found
+			w.WriteHeader(400)
+			w.Write([]byte("Error 400: Don't have files with duplicate dates"))
+			return
+		}
+	}
+
 	for i := range result {
 		switch result[i] {
 		case "Admin2":
@@ -245,15 +260,28 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		ts.Admin2 = result[Admin2Index]
+		if Admin2Index >= 0 { // Admin2 exists
+			ts.Admin2 = result[Admin2Index]
+		}
 		ts.Address1 = result[Address1Index]
 		ts.Address2 = result[Address2Index]
 		// Assuming that we have successfully parsed to a TimeSeries struct
-		stmt, err := db.Db.Prepare("INSERT INTO TimeSeries(Admin2, Address1, Address2) VALUES(?,?,?)")
+		var query string
+		if Admin2Index >= 0 {
+			query = "INSERT INTO TimeSeries(Admin2, Address1, Address2) VALUES(?,?,?)"
+		} else {
+			query = "INSERT INTO TimeSeries(Address1, Address2) VALUES(?,?)"
+		}
+		stmt, err := db.Db.Prepare(query)
 		if err != nil {
 			log.Fatal(err)
 		}
-		res, err := stmt.Exec(ts.Admin2, ts.Address1, ts.Address2)
+		var res sql.Result
+		if Admin2Index >= 0 {
+			res, err = stmt.Exec(ts.Admin2, ts.Address1, ts.Address2)
+		} else {
+			res, err = stmt.Exec(ts.Address1, ts.Address2)
+		}
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -263,7 +291,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			log.Fatal(err)
 		}
 
-		query := fmt.Sprintf("INSERT INTO TimeSeries%s VALUES(?,?,?)", filetype)
+		query = fmt.Sprintf("INSERT INTO TimeSeries%s VALUES(?,?,?)", filetype)
 		stmt, err = db.Db.Prepare(query)
 		if err != nil {
 			log.Fatal(err)
