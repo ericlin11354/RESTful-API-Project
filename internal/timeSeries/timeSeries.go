@@ -19,6 +19,7 @@ import (
 
 	// Internal imports
 	db "gitlab.com/csc301-assignments/a2/internal/db"
+	"gitlab.com/csc301-assignments/a2/internal/utils"
 )
 
 type TimeSeries struct {
@@ -45,22 +46,6 @@ func Routes() chi.Router {
 	r.Post("/", Create)
 
 	return r
-}
-
-func paramValidate(param string) (string, bool) {
-	validator := map[string]string{
-		"id":       "id",
-		"admin2":   "admin2",
-		"province": "address1",
-		"state":    "address1",
-		"country":  "address2",
-		"region":   "address2",
-		"date":     "date",
-		"from":     "from",
-		"to":       "to",
-	}
-	result, ok := validator[param]
-	return result, ok
 }
 
 func nullHandler(ts *TimeSeries, values map[string]*sql.NullString) {
@@ -90,7 +75,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 		param = strings.ToLower(param)
 
 		var valid bool
-		if param, valid = paramValidate(param); !valid {
+		if param, valid = utils.ParamValidate(param); !valid {
 			w.WriteHeader(400)
 			if _, err := w.Write([]byte("Error 400: Invalid Input")); err != nil {
 				log.Fatal(err)
@@ -208,11 +193,6 @@ func List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tsArrJson, err := json.Marshal(tsArr)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	if r.Header.Get("Accept") == "text/csv" {
 		w.Header().Set("Content-Type", "text/csv")
 
@@ -245,7 +225,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 	} else {
 		w.Header().Set("Content-Type", "application/json")
-		if _, err = w.Write(tsArrJson); err != nil {
+		if err = json.NewEncoder(w).Encode(tsArr); err != nil {
 			log.Fatal(err)
 		}
 	}

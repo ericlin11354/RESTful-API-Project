@@ -26,7 +26,7 @@ CREATE TABLE DailyReports(
 	Address1 TEXT,
 	Address2 TEXT,
 	Confirmed INT,
-	Deaths INT,
+	Death INT,
 	Recovered INT,
 	Active INT,
 	primary key(ID)
