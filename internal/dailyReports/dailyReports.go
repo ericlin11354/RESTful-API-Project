@@ -74,7 +74,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
 
 	query := `
-		SELECT DISTINCT ID, Date, Admin2, Address1, Address2,
+		SELECT ID, Date, Admin2, Address1, Address2,
 		Confirmed, Death, Recovered, Active
 		FROM DailyReports
 	`

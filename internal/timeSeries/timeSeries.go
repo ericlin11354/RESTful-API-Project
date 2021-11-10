@@ -49,10 +49,16 @@ func Routes() chi.Router {
 }
 
 func List(w http.ResponseWriter, r *http.Request) {
-	query, death, recovered := makeQuery(w, r)
-	if query == "" {
+	query, death, recovered, status := makeQuery(r.URL.Query())
+	if status == 400 {
+		w.WriteHeader(400)
+		if _, err := w.Write([]byte("Error 400: Invalid Input")); err != nil {
+			log.Fatal(err)
+		}
 		return
 	}
+
+	typeStr := getType(death, recovered)
 
 	stmt, err := db.Db.Prepare(query)
 
@@ -68,6 +74,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 	}
 	defer row.Close()
 
+	// Initializing array of TimeSeries
 	tsArr := []TimeSeries{}
 	for row.Next() {
 		ts := TimeSeries{}
@@ -85,29 +92,24 @@ func List(w http.ResponseWriter, r *http.Request) {
 		nullHandler(&ts, temp)
 
 		// Initializing empty maps (to be filled)
-		ts.Confirmed = map[time.Time]int{}
-		ts.Death = map[time.Time]int{}
-		ts.Recovered = map[time.Time]int{}
+		if typeStr == "Confirmed" {
+			ts.Confirmed = map[time.Time]int{}
+		} else if typeStr == "Death" {
+			ts.Death = map[time.Time]int{}
+		} else {
+			ts.Recovered = map[time.Time]int{}
+		}
 		tsArr = append(tsArr, ts)
 	}
 
 	// Filling maps
-	columns := "TimeSeriesConfirmed.Date, Confirmed"
-	join := ""
-	if death {
-		columns += ", Death"
-		join += "JOIN TimeSeriesDeath ON TimeSeriesConfirmed.ID = TimeSeriesDeath.ID"
-	}
-	if recovered {
-		columns += ", Recovered"
-		join += " JOIN TimeSeriesRecovered ON TimeSeriesConfirmed.ID = TimeSeriesRecovered.ID"
-	}
+	columns := fmt.Sprintf("Date, %s", typeStr)
 	for _, ts := range tsArr {
 		query := fmt.Sprintf(`
-			SELECT %s FROM TimeSeriesConfirmed
-			%s
-			WHERE TimeSeriesConfirmed.ID = %s
-		`, columns, join, ts.ID)
+			SELECT %s FROM TimeSeries%s
+			WHERE ID = %s
+		`, columns, typeStr, ts.ID)
+
 		stmt, err := db.Db.Prepare(query)
 		if err != nil {
 			log.Fatal(err)
@@ -123,29 +125,29 @@ func List(w http.ResponseWriter, r *http.Request) {
 		for rows.Next() {
 			tsd := TimeSeriesDate{}
 			var err error
-			if !death && !recovered {
+			if typeStr == "Confirmed" {
 				err = rows.Scan(&tsd.Date, &tsd.Confirmed)
-			} else if death && !recovered {
-				err = rows.Scan(&tsd.Date, &tsd.Confirmed, &tsd.Death)
-			} else if recovered && !death {
-				err = rows.Scan(&tsd.Date, &tsd.Confirmed, &tsd.Recovered)
+			} else if typeStr == "Death" {
+				err = rows.Scan(&tsd.Date, &tsd.Death)
 			} else {
-				err = rows.Scan(&tsd.Date, &tsd.Confirmed, &tsd.Death, &tsd.Recovered)
+				err = rows.Scan(&tsd.Date, &tsd.Recovered)
 			}
+
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			ts.Confirmed[tsd.Date] = tsd.Confirmed
-			if death {
+			if typeStr == "Confirmed" {
+				ts.Confirmed[tsd.Date] = tsd.Confirmed
+			} else if typeStr == "Death" {
 				ts.Death[tsd.Date] = tsd.Death
-			}
-			if recovered {
+			} else {
 				ts.Recovered[tsd.Date] = tsd.Recovered
 			}
 		}
 	}
 
+	// Check 'Accept' type
 	if r.Header.Get("Accept") == "text/csv" {
 		w.Header().Set("Content-Type", "text/csv")
 
@@ -154,9 +156,17 @@ func List(w http.ResponseWriter, r *http.Request) {
 		csvArr := [][]string{}
 		csvArr = append(csvArr, writeHeader(death, recovered))
 
-		// Filling in respond in csv format
+		// Writing response in CSV
 		for _, ts := range tsArr {
-			for date := range ts.Confirmed {
+			data := map[time.Time]int{}
+			if typeStr == "Confirmed" {
+				data = ts.Confirmed
+			} else if typeStr == "Death" {
+				data = ts.Death
+			} else {
+				data = ts.Recovered
+			}
+			for date := range data {
 				row := []string{
 					ts.ID,
 					writeAddress(ts),
@@ -175,6 +185,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 		}
 
 	} else {
+		// Writing response in JSON
 		w.Header().Set("Content-Type", "application/json")
 		if err = json.NewEncoder(w).Encode(tsArr); err != nil {
 			log.Fatal(err)
@@ -336,9 +347,31 @@ func Update(w http.ResponseWriter, r *http.Request) {
 }
 
 // Helper functions
-func makeQuery(w http.ResponseWriter, r *http.Request) (string, bool, bool) {
-	params := r.URL.Query()
+func makeQuery(params map[string][]string) (string, bool, bool, int) {
 	death, recovered := false, false
+	formattedParams := map[string][]string{}
+	// Validating params
+	for param, value := range params {
+		param = strings.ToLower(param)
+
+		var valid bool
+		if param, valid = utils.ParamValidate(param); !valid {
+			return "", false, false, 400
+		}
+		formattedParams[param] = value
+	}
+
+	if _, ok := formattedParams["death"]; ok {
+		death = true
+	}
+	if _, ok := formattedParams["recovered"]; ok {
+		recovered = true
+	}
+
+	// Mutually exclusive
+	if death && recovered {
+		return "", false, false, 400
+	}
 
 	query := `
 		SELECT DISTINCT TimeSeries.ID, Admin2, Address1, Address2
@@ -348,30 +381,8 @@ func makeQuery(w http.ResponseWriter, r *http.Request) (string, bool, bool) {
 		JOIN TimeSeriesRecovered ON TimeSeries.ID = TimeSeriesRecovered.ID
 	`
 
-	i := 0
-	for param, value := range params {
-		param = strings.ToLower(param)
-
-		var valid bool
-		if param, valid = utils.ParamValidate(param); !valid {
-			w.WriteHeader(400)
-			if _, err := w.Write([]byte("Error 400: Invalid Input")); err != nil {
-				log.Fatal(err)
-			}
-			return "", false, false
-		}
-
-		// Time interval
-		op := "="
-		if param == "from" {
-			param = "date"
-			op = ">="
-		}
-		if param == "to" {
-			param = "date"
-			op = "<="
-		}
-
+	i := 0 // counter for 'WHERE'
+	for param, value := range formattedParams {
 		// Displaying data
 		if param == "death" {
 			death = true
@@ -380,6 +391,17 @@ func makeQuery(w http.ResponseWriter, r *http.Request) (string, bool, bool) {
 		if param == "recovered" {
 			recovered = true
 			continue
+		}
+
+		// Time interval
+		op := "="
+		if param == "from" || param == "to" {
+			if param == "from" {
+				op = ">="
+			} else {
+				op = "<="
+			}
+			param = "date"
 		}
 
 		value := strings.Split(value[0], ",")
@@ -391,18 +413,12 @@ func makeQuery(w http.ResponseWriter, r *http.Request) (string, bool, bool) {
 				"address1": fmt.Sprintf(`'%s'`, v),
 				"address2": fmt.Sprintf(`'%s'`, v),
 				"date":     fmt.Sprintf(`'%s'`, v),
-				"from":     fmt.Sprintf(`'%s'`, v),
-				"to":       fmt.Sprintf(`'%s'`, v),
 			}
 			_, ok := stringParams[param]
 			if ok {
-				if param == "date" || param == "from" || param == "to" {
+				if param == "date" {
 					if _, err := utils.ParseDate(v); err != nil {
-						w.WriteHeader(400)
-						if _, err := w.Write([]byte("Error 400: Invalid Input")); err != nil {
-							log.Fatal(err)
-						}
-						return "", false, false
+						return "", false, false, 400
 					}
 				}
 				value[j] = stringParams[param]
@@ -410,7 +426,7 @@ func makeQuery(w http.ResponseWriter, r *http.Request) (string, bool, bool) {
 
 			// Format first param and after
 			if i == 0 {
-				query += "WHERE " + param + op + value[j]
+				query += "\tWHERE " + param + op + value[j]
 				i++
 			} else {
 				if j != 0 {
@@ -418,11 +434,21 @@ func makeQuery(w http.ResponseWriter, r *http.Request) (string, bool, bool) {
 				} else {
 					query += " AND " + param + op + value[j]
 				}
-
 			}
 		}
 	}
-	return query, death, recovered
+
+	return query, death, recovered, 0
+}
+
+func getType(d bool, r bool) string {
+	if !d && !r {
+		return "Confirmed"
+	}
+	if d {
+		return "Death"
+	}
+	return "Recovered"
 }
 
 func nullHandler(ts *TimeSeries, ns map[string]*sql.NullString) {
@@ -439,14 +465,8 @@ func nullHandler(ts *TimeSeries, ns map[string]*sql.NullString) {
 }
 
 func writeHeader(death bool, recovered bool) []string {
-	header := []string{"ID", "Address", "Date", "Confirmed"}
-	if death {
-		header = append(header, "Death")
-	}
-	if recovered {
-		header = append(header, "Recovered")
-	}
-	return header
+	col := getType(death, recovered)
+	return []string{"ID", "Address", "Date", col}
 }
 
 func writeAddress(ts TimeSeries) string {
@@ -464,11 +484,13 @@ func writeAddress(ts TimeSeries) string {
 }
 
 func writeRow(ts TimeSeries, date time.Time, death bool, recovered bool) []string {
-	arr := []string{strconv.Itoa(ts.Confirmed[date])}
-	if death {
+	typeStr := getType(death, recovered)
+	arr := []string{}
+	if typeStr == "Confirmed" {
+		arr = append(arr, strconv.Itoa(ts.Confirmed[date]))
+	} else if typeStr == "Death" {
 		arr = append(arr, strconv.Itoa(ts.Death[date]))
-	}
-	if recovered {
+	} else {
 		arr = append(arr, strconv.Itoa(ts.Recovered[date]))
 	}
 	return arr

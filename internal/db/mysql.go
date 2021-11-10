@@ -29,7 +29,7 @@ func InitDb() {
 	)
 	dbURI := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", dbUser, dbPwd, dbTCPHost, dbPort, dbName)
 
-	fmt.Println("DB LINK:", dbURI)
+	// fmt.Println("DB LINK:", dbURI)
 
 	db, err := sql.Open("mysql", dbURI)
 	if err != nil {
@@ -43,4 +43,5 @@ func InitDb() {
 
 	// Successfully intialized connection to db
 	Db = db
+	fmt.Println("Connected to db")
 }

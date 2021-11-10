@@ -2,7 +2,10 @@ package timeSeries
 
 import (
 	"database/sql"
+	"io"
 	"log"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,6 +32,34 @@ func ConnectToDb() {
 }
 
 // Testing helper functions
+func TestGetType(t *testing.T) {
+	// Both false
+	d, r := false, false
+	expect := "Confirmed"
+	result := getType(d, r)
+
+	if expect != result {
+		t.Fatalf("Test failed: expected %s, got %s", expect, result)
+	}
+
+	d = true
+	r = false
+	expect = "Death"
+	result = getType(d, r)
+	if expect != result {
+		t.Fatalf("Test failed: expected %s, got %s", expect, result)
+	}
+
+	d = false
+	r = true
+	expect = "Recovered"
+	result = getType(d, r)
+	if expect != result {
+		t.Fatalf("Test failed: expected %s, got %s", expect, result)
+	}
+
+}
+
 func TestNullHandler(t *testing.T) {
 	// All null
 	ts := TimeSeries{}
@@ -78,74 +109,52 @@ func TestNullHandler(t *testing.T) {
 	}
 }
 
-func TestWriteRow(t *testing.T) {
-	ts := TimeSeries{
-		Confirmed: map[time.Time]int{},
-		Death:     map[time.Time]int{},
-		Recovered: map[time.Time]int{},
-	}
-	date, err := time.Parse("2006/1/2", "2021/10/31")
-	if err != nil {
-		t.Errorf("Error during creating Date: %v", err)
-	}
-	ts.Confirmed[date] = 10
-	ts.Death[date] = 20
-	ts.Recovered[date] = 30
-
-	death, recovered := false, false
+func TestWriteHeader(t *testing.T) {
 	// Both false
-	expected := []string{"10"}
-	result := writeRow(ts, date, death, recovered)
-	if len(expected) != len(result) || expected[0] != result[0] {
-		t.Fatalf("Test failed: expected %s, received %s", expected[0], result[0])
+	death, recovered := false, false
+	expected := []string{"ID", "Address", "Date", "Confirmed"}
+	result := writeHeader(death, recovered)
+	if len(expected) != len(result) {
+		t.Fatalf("Test Failed: length unequal (%d != %d)",
+			len(expected), len(result))
+	}
+	for i := range expected {
+		if expected[i] != result[i] {
+			t.Fatalf("Test Failed: expected %s, got != %s",
+				expected[i], result[i])
+		}
 	}
 
 	// Death
 	death = true
 	recovered = false
-	expected = []string{"10", "20"}
-	result = writeRow(ts, date, death, recovered)
-	if len(expected) == len(result) {
-		for i := range result {
-			if expected[i] != result[i] {
-				t.Fatalf("Test failed: expected %s, received %s", expected[i], result[i])
-			}
-		}
-	} else {
-		t.Fatalf("Test failed: expected's array length %d, received %d",
+	expected = []string{"ID", "Address", "Date", "Death"}
+	result = writeHeader(death, recovered)
+	if len(expected) != len(result) {
+		t.Fatalf("Test Failed: length unequal (%d != %d)",
 			len(expected), len(result))
+	}
+	for i := range expected {
+		if expected[i] != result[i] {
+			t.Fatalf("Test Failed: expected %s, got != %s",
+				expected[i], result[i])
+		}
 	}
 
 	// Recovered
 	death = false
 	recovered = true
-	expected = []string{"10", "30"}
-	result = writeRow(ts, date, death, recovered)
-	if len(expected) == len(result) {
-		for i := range result {
-			if expected[i] != result[i] {
-				t.Fatalf("Test failed: expected %s, received %s", expected[i], result[i])
-			}
-		}
-	} else {
-		t.Fatalf("Test failed: expected's array length %d, received %d",
+	expected = []string{"ID", "Address", "Date", "Recovered"}
+	result = writeHeader(death, recovered)
+	if len(expected) != len(result) {
+		t.Fatalf("Test Failed: length unequal (%d != %d)",
 			len(expected), len(result))
 	}
-
-	// Both
-	death = true
-	recovered = true
-	expected = []string{"10", "20", "30"}
-	result = writeRow(ts, date, death, recovered)
-	if len(expected) == len(result) {
-		for i := range result {
-			if expected[i] != result[i] {
-				t.Fatalf("Test failed: expected %s, received %s", expected[i], result[i])
-			}
+	for i := range expected {
+		if expected[i] != result[i] {
+			t.Fatalf("Test Failed: expected %s, got != %s",
+				expected[i], result[i])
 		}
-	} else {
-		t.Fatalf("Test failed: expected's array length %d, received %d",
-			len(expected), len(result))
 	}
 }
 
@@ -200,72 +209,257 @@ func TestWriteAddress(t *testing.T) {
 	}
 }
 
-func TestWriteHeader(t *testing.T) {
-	// Both false
-	death, recovered := false, false
-	expected := []string{"ID", "Address", "Date", "Confirmed"}
-	result := writeHeader(death, recovered)
-	if len(expected) != len(result) {
-		t.Fatalf("Test Failed: length unequal (%d != %d)",
-			len(expected), len(result))
+func TestWriteRow(t *testing.T) {
+	ts := TimeSeries{
+		Confirmed: map[time.Time]int{},
+		Death:     map[time.Time]int{},
+		Recovered: map[time.Time]int{},
 	}
-	for i := range expected {
-		if expected[i] != result[i] {
-			t.Fatalf("Test Failed: expected %s, got != %s",
-				expected[i], result[i])
-		}
+	date, err := time.Parse("2006/1/2", "2021/10/31")
+	if err != nil {
+		t.Errorf("Error during creating Date: %v", err)
+	}
+	ts.Confirmed[date] = 10
+	ts.Death[date] = 20
+	ts.Recovered[date] = 30
+
+	death, recovered := false, false
+
+	// Both false
+	expected := []string{"10"}
+	result := writeRow(ts, date, death, recovered)
+	if len(expected) != len(result) || expected[0] != result[0] {
+		t.Fatalf("Test failed: expected %s, received %s", expected[0], result[0])
 	}
 
 	// Death
 	death = true
 	recovered = false
-	expected = []string{"ID", "Address", "Date", "Confirmed", "Death"}
-	result = writeHeader(death, recovered)
-	if len(expected) != len(result) {
-		t.Fatalf("Test Failed: length unequal (%d != %d)",
-			len(expected), len(result))
-	}
-	for i := range expected {
-		if expected[i] != result[i] {
-			t.Fatalf("Test Failed: expected %s, got != %s",
-				expected[i], result[i])
-		}
+	expected = []string{"20"}
+	result = writeRow(ts, date, death, recovered)
+	if len(expected) != len(result) || expected[0] != result[0] {
+		t.Fatalf("Test failed: expected %s, received %s", expected[0], result[0])
 	}
 
 	// Recovered
 	death = false
 	recovered = true
-	expected = []string{"ID", "Address", "Date", "Confirmed", "Recovered"}
-	result = writeHeader(death, recovered)
-	if len(expected) != len(result) {
-		t.Fatalf("Test Failed: length unequal (%d != %d)",
-			len(expected), len(result))
-	}
-	for i := range expected {
-		if expected[i] != result[i] {
-			t.Fatalf("Test Failed: expected %s, got != %s",
-				expected[i], result[i])
-		}
-	}
-
-	// Both
-	death = true
-	recovered = true
-	expected = []string{"ID", "Address", "Date", "Confirmed", "Death", "Recovered"}
-	result = writeHeader(death, recovered)
-	if len(expected) != len(result) {
-		t.Fatalf("Test Failed: length unequal (%d != %d)",
-			len(expected), len(result))
-	}
-	for i := range expected {
-		if expected[i] != result[i] {
-			t.Fatalf("Test Failed: expected %s, got != %s",
-				expected[i], result[i])
-		}
+	expected = []string{"30"}
+	result = writeRow(ts, date, death, recovered)
+	if len(expected) != len(result) || expected[0] != result[0] {
+		t.Fatalf("Test failed: expected %s, received %s", expected[0], result[0])
 	}
 }
 
-// Testing List
+// resp := w.Result()
+// body, _ := io.ReadAll(resp.Body)
+
+// fmt.Println(resp.StatusCode)
+// fmt.Println(resp.Header.Get("Content-Type"))
+// fmt.Println(string(body))
+
+// Output:
+// 200
+// text/html; charset=utf-8
+// <html><body>Hello World!</body></html>
 func TestMakeQuery(t *testing.T) {
+	// Test no params
+	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
+
+	query, death, recovered, status := makeQuery(r.URL.Query())
+
+	query = strings.TrimSpace(query)
+	expected_query := strings.TrimSpace(`
+		SELECT DISTINCT TimeSeries.ID, Admin2, Address1, Address2
+		FROM TimeSeries JOIN TimeSeriesConfirmed ON
+		TimeSeries.ID = TimeSeriesConfirmed.ID
+		JOIN TimeSeriesDeath ON TimeSeries.ID = TimeSeriesDeath.ID
+		JOIN TimeSeriesRecovered ON TimeSeries.ID = TimeSeriesRecovered.ID
+	`)
+	if expected_query != query {
+		t.Fatalf("Test failed: expected %s, got %s", expected_query, query)
+	}
+
+	if death || recovered {
+		t.Fatalf("Test failed: expected both false, got %v and %v", death, recovered)
+	}
+
+	if status != 0 {
+		t.Fatalf("Test failed: expected 0, got %d", status)
+	}
+
+	// Test invalid params
+	r = httptest.NewRequest("GET", "http://example.com/foo?asd=asd", nil)
+
+	query, death, recovered, status = makeQuery(r.URL.Query())
+	expected_query = ""
+	if expected_query != query {
+		t.Fatalf("Test failed: expected %s, got %s", expected_query, query)
+	}
+
+	if death || recovered {
+		t.Fatalf("Test failed: expected both false, got %v and %v", death, recovered)
+	}
+
+	if status != 400 {
+		t.Fatalf("Test failed: expected 400, got %d", status)
+	}
+
+	// Test both death and recovered
+	r = httptest.NewRequest("GET", "http://example.com/foo?death&recovered", nil)
+
+	query, death, recovered, status = makeQuery(r.URL.Query())
+	expected_query = ""
+	if expected_query != query {
+		t.Fatalf("Test failed: expected %s, got %s", expected_query, query)
+	}
+
+	if death || recovered {
+		t.Fatalf("Test failed: expected both false, got %v and %v", death, recovered)
+	}
+
+	if status != 400 {
+		t.Fatalf("Test failed: expected 400, got %d", status)
+	}
+
+	// Test death
+	r = httptest.NewRequest("GET", "http://example.com/foo?Death", nil)
+
+	query, death, recovered, status = makeQuery(r.URL.Query())
+	query = strings.TrimSpace(query)
+	expected_query = strings.TrimSpace(`
+		SELECT DISTINCT TimeSeries.ID, Admin2, Address1, Address2
+		FROM TimeSeries JOIN TimeSeriesConfirmed ON
+		TimeSeries.ID = TimeSeriesConfirmed.ID
+		JOIN TimeSeriesDeath ON TimeSeries.ID = TimeSeriesDeath.ID
+		JOIN TimeSeriesRecovered ON TimeSeries.ID = TimeSeriesRecovered.ID
+	`)
+	if expected_query != query {
+		t.Fatalf("Test failed: expected %s, got %s", expected_query, query)
+	}
+
+	if !death || recovered {
+		t.Fatalf("Test failed: expected both true, got %v and %v", death, recovered)
+	}
+
+	if status != 0 {
+		t.Fatalf("Test failed: expected 0, got %d", status)
+	}
+
+	// Test state and country params
+	r = httptest.NewRequest(
+		"GET",
+		"http://example.com/foo?country=canada,us&state=ontario,ohio",
+		nil)
+
+	query, death, recovered, status = makeQuery(r.URL.Query())
+	query = strings.TrimSpace(query)
+
+	lines := strings.Split(query, "\n")
+	lastline := strings.TrimSpace(lines[len(lines)-1])
+
+	checker := "address2='canada' OR address2='us'"
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+
+	checker = "address1='ontario' OR address1='ohio'"
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+
+	if death || recovered {
+		t.Fatalf("Test failed: expected both false, got %v and %v", death, recovered)
+	}
+
+	if status != 0 {
+		t.Fatalf("Test failed: expected 0, got %d", status)
+	}
+
+	// Test admin2, province, and region params
+	r = httptest.NewRequest(
+		"GET",
+		"http://example.com/foo?region=foo&province=bar&admin2=uwu",
+		nil)
+
+	query, death, recovered, status = makeQuery(r.URL.Query())
+	query = strings.TrimSpace(query)
+
+	lines = strings.Split(query, "\n")
+	lastline = strings.TrimSpace(lines[len(lines)-1])
+
+	checker = "admin2='uwu'"
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+
+	checker = "address1='bar'"
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+
+	checker = "address2='foo'"
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+
+	if death || recovered {
+		t.Fatalf("Expected both false, got %v and %v", death, recovered)
+	}
+
+	if status != 0 {
+		t.Fatalf("Test failed: expected 0, got %d", status)
+	}
+
+	// Test date params
+	r = httptest.NewRequest(
+		"GET",
+		"http://example.com/foo?date=1/2/3&from=4/5/6&to=7/8/9",
+		nil)
+
+	query, death, recovered, status = makeQuery(r.URL.Query())
+	query = strings.TrimSpace(query)
+
+	lines = strings.Split(query, "\n")
+	lastline = strings.TrimSpace(lines[len(lines)-1])
+
+	checker = "date='1/2/3'"
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+
+	checker = "date>='4/5/6'"
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+
+	checker = "date<='7/8/9'"
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+
+	if death || recovered {
+		t.Fatalf("Expected both false, got %v and %v", death, recovered)
+	}
+
+	if status != 0 {
+		t.Fatalf("Test failed: expected 0, got %d", status)
+	}
+}
+
+func TestList(t *testing.T) {
+	ConnectToDb()
+	r := httptest.NewRequest("GET", "http://example.com/foo?country=us&date=21/11/1&death", nil)
+	w := httptest.NewRecorder()
+	List(w, r)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+
+	t.Errorf("%s", string(body))
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("Test failed: expected code 200, got %d", resp.StatusCode)
+	}
 
 }
