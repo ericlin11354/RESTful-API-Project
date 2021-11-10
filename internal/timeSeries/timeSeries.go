@@ -48,105 +48,12 @@ func Routes() chi.Router {
 	return r
 }
 
-func nullHandler(ts *TimeSeries, values map[string]*sql.NullString) {
-	ts.ID = values["id"].String
-	if values["admin2"].Valid {
-		ts.Admin2 = values["admin2"].String
-	}
-	if values["address1"].Valid {
-		ts.Address1 = values["address1"].String
-	}
-	if values["address2"].Valid {
-		ts.Address2 = values["address2"].String
-	}
-}
-
 func List(w http.ResponseWriter, r *http.Request) {
-	params := r.URL.Query()
-	death, recovered := false, false
-
-	query := `
-		SELECT DISTINCT TimeSeries.ID, Admin2, Address1, Address2
-		FROM TimeSeries JOIN TimeSeriesConfirmed ON
-		TimeSeries.ID = TimeSeriesConfirmed.ID
-		JOIN TimeSeriesDeath ON TimeSeries.ID = TimeSeriesDeath.ID
-		JOIN TimeSeriesRecovered ON TimeSeries.ID = TimeSeriesRecovered.ID
-	`
-
-	i := 0
-	for param, value := range params {
-		param = strings.ToLower(param)
-
-		var valid bool
-		if param, valid = utils.ParamValidate(param); !valid {
-			w.WriteHeader(400)
-			if _, err := w.Write([]byte("Error 400: Invalid Input")); err != nil {
-				log.Fatal(err)
-			}
-			return
-		}
-
-		// Time interval
-		op := "="
-		if param == "from" {
-			param = "date"
-			op = ">="
-		}
-		if param == "to" {
-			param = "date"
-			op = "<="
-		}
-
-		// Displaying data
-		if param == "death" {
-			death = true
-			continue
-		}
-		if param == "recovered" {
-			recovered = true
-			continue
-		}
-
-		value := strings.Split(value[0], ",")
-
-		for j, v := range value {
-			// Format string for SQL
-			stringParams := map[string]string{
-				"admin2":   fmt.Sprintf(`'%s'`, v),
-				"address1": fmt.Sprintf(`'%s'`, v),
-				"address2": fmt.Sprintf(`'%s'`, v),
-				"date":     fmt.Sprintf(`'%s'`, v),
-				"from":     fmt.Sprintf(`'%s'`, v),
-				"to":       fmt.Sprintf(`'%s'`, v),
-			}
-			_, ok := stringParams[param]
-			if ok {
-				if param == "date" || param == "from" || param == "to" {
-					if _, err := utils.ParseDate(v); err != nil {
-						w.WriteHeader(400)
-						if _, err := w.Write([]byte("Error 400: Invalid Input")); err != nil {
-							log.Fatal(err)
-						}
-						return
-					}
-				}
-				value[j] = stringParams[param]
-			}
-
-			// Format first param and after
-			if i == 0 {
-				query += "WHERE " + param + op + value[j]
-				i++
-			} else {
-				if j != 0 {
-					query += " OR " + param + op + value[j]
-				} else {
-					query += " AND " + param + op + value[j]
-				}
-
-			}
-		}
+	query, death, recovered := makeQuery(w, r)
+	if query == "" {
+		return
 	}
+
 	stmt, err := db.Db.Prepare(query)
 
 	if err != nil {
@@ -185,7 +92,6 @@ func List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Filling maps
-	// TODO: Decide if you want multiple views or 1 type at a time
 	columns := "TimeSeriesConfirmed.Date, Confirmed"
 	join := ""
 	if death {
@@ -245,7 +151,8 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 		b := new(bytes.Buffer)
 		writer := csv.NewWriter(b)
-		csvArr := writeHeader(death, recovered)
+		csvArr := [][]string{}
+		csvArr = append(csvArr, writeHeader(death, recovered))
 
 		// Filling in respond in csv format
 		for _, ts := range tsArr {
@@ -400,7 +307,110 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(body)
 }
 
-func writeHeader(death bool, recovered bool) [][]string {
+// Helper functions
+func makeQuery(w http.ResponseWriter, r *http.Request) (string, bool, bool) {
+	params := r.URL.Query()
+	death, recovered := false, false
+
+	query := `
+		SELECT DISTINCT TimeSeries.ID, Admin2, Address1, Address2
+		FROM TimeSeries JOIN TimeSeriesConfirmed ON
+		TimeSeries.ID = TimeSeriesConfirmed.ID
+		JOIN TimeSeriesDeath ON TimeSeries.ID = TimeSeriesDeath.ID
+		JOIN TimeSeriesRecovered ON TimeSeries.ID = TimeSeriesRecovered.ID
+	`
+
+	i := 0
+	for param, value := range params {
+		param = strings.ToLower(param)
+
+		var valid bool
+		if param, valid = utils.ParamValidate(param); !valid {
+			w.WriteHeader(400)
+			if _, err := w.Write([]byte("Error 400: Invalid Input")); err != nil {
+				log.Fatal(err)
+			}
+			return "", false, false
+		}
+
+		// Time interval
+		op := "="
+		if param == "from" {
+			param = "date"
+			op = ">="
+		}
+		if param == "to" {
+			param = "date"
+			op = "<="
+		}
+
+		// Displaying data
+		if param == "death" {
+			death = true
+			continue
+		}
+		if param == "recovered" {
+			recovered = true
+			continue
+		}
+
+		value := strings.Split(value[0], ",")
+
+		for j, v := range value {
+			// Format string for SQL
+			stringParams := map[string]string{
+				"admin2":   fmt.Sprintf(`'%s'`, v),
+				"address1": fmt.Sprintf(`'%s'`, v),
+				"address2": fmt.Sprintf(`'%s'`, v),
+				"date":     fmt.Sprintf(`'%s'`, v),
+				"from":     fmt.Sprintf(`'%s'`, v),
+				"to":       fmt.Sprintf(`'%s'`, v),
+			}
+			_, ok := stringParams[param]
+			if ok {
+				if param == "date" || param == "from" || param == "to" {
+					if _, err := utils.ParseDate(v); err != nil {
+						w.WriteHeader(400)
+						if _, err := w.Write([]byte("Error 400: Invalid Input")); err != nil {
+							log.Fatal(err)
+						}
+						return "", false, false
+					}
+				}
+				value[j] = stringParams[param]
+			}
+
+			// Format first param and after
+			if i == 0 {
+				query += "WHERE " + param + op + value[j]
+				i++
+			} else {
+				if j != 0 {
+					query += " OR " + param + op + value[j]
+				} else {
+					query += " AND " + param + op + value[j]
+				}
+
+			}
+		}
+	}
+	return query, death, recovered
+}
+
+func nullHandler(ts *TimeSeries, ns map[string]*sql.NullString) {
+	ts.ID = ns["id"].String
+	if ns["admin2"].Valid {
+		ts.Admin2 = ns["admin2"].String
+	}
+	if ns["address1"].Valid {
+		ts.Address1 = ns["address1"].String
+	}
+	if ns["address2"].Valid {
+		ts.Address2 = ns["address2"].String
+	}
+}
+
+func writeHeader(death bool, recovered bool) []string {
 	header := []string{"ID", "Address", "Date", "Confirmed"}
 	if death {
 		header = append(header, "Death")
@@ -408,7 +418,7 @@ func writeHeader(death bool, recovered bool) [][]string {
 	if recovered {
 		header = append(header, "Recovered")
 	}
-	return [][]string{header}
+	return header
 }
 
 func writeAddress(ts TimeSeries) string {
