@@ -186,23 +186,22 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 	// Filling maps
 	// TODO: Decide if you want multiple views or 1 type at a time
-	columns := "TimeSeriesConfirmed.Date"
-	joinDeath := ""
-	joinRecover := ""
+	columns := "TimeSeriesConfirmed.Date, Confirmed"
+	join := ""
 	if death {
 		columns += ", Death"
-		joinDeath = "JOIN TimeSeriesDeath ON TimeSeriesConfirmed.ID = TimeSeriesDeath.ID"
+		join += "JOIN TimeSeriesDeath ON TimeSeriesConfirmed.ID = TimeSeriesDeath.ID"
 	}
 	if recovered {
 		columns += ", Recovered"
-		joinRecover = "JOIN TimeSeriesRecovered ON TimeSeriesConfirmed.ID = TimeSeriesRecovered.ID"
+		join += " JOIN TimeSeriesRecovered ON TimeSeriesConfirmed.ID = TimeSeriesRecovered.ID"
 	}
 	for _, ts := range tsArr {
 		query := fmt.Sprintf(`
 			SELECT %s FROM TimeSeriesConfirmed
-			%s %s
+			%s
 			WHERE TimeSeriesConfirmed.ID = %s
-		`, columns, joinDeath, joinRecover, ts.ID)
+		`, columns, join, ts.ID)
 		stmt, err := db.Db.Prepare(query)
 		if err != nil {
 			log.Fatal(err)
@@ -217,7 +216,16 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			tsd := TimeSeriesDate{}
-			err := rows.Scan(&tsd.Date, &tsd.Confirmed)
+			var err error
+			if !death && !recovered {
+				err = rows.Scan(&tsd.Date, &tsd.Confirmed)
+			} else if death && !recovered {
+				err = rows.Scan(&tsd.Date, &tsd.Confirmed, &tsd.Death)
+			} else if recovered && !death {
+				err = rows.Scan(&tsd.Date, &tsd.Confirmed, &tsd.Recovered)
+			} else {
+				err = rows.Scan(&tsd.Date, &tsd.Confirmed, &tsd.Death, &tsd.Recovered)
+			}
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -237,20 +245,17 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 		b := new(bytes.Buffer)
 		writer := csv.NewWriter(b)
-		csvArr := [][]string{
-			{"ID", "Date", "Confirmed", "Death", "Recovered"},
-		}
+		csvArr := writeHeader(death, recovered)
 
 		// Filling in respond in csv format
 		for _, ts := range tsArr {
 			for date := range ts.Confirmed {
 				row := []string{
 					ts.ID,
+					writeAddress(ts),
 					date.Format("2006/01/02"),
-					strconv.Itoa(ts.Confirmed[date]),
-					strconv.Itoa(ts.Death[date]),
-					strconv.Itoa(ts.Recovered[date]),
 				}
+				row = append(row, writeRow(ts, date, death, recovered)...)
 				csvArr = append(csvArr, row)
 			}
 		}
@@ -395,4 +400,40 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	id := r.Context().Value("id").(string)
 	body := "" + id
 	fmt.Println(body)
+}
+
+func writeHeader(death bool, recovered bool) [][]string {
+	header := []string{"ID", "Address", "Date", "Confirmed"}
+	if death {
+		header = append(header, "Death")
+	}
+	if recovered {
+		header = append(header, "Recovered")
+	}
+	return [][]string{header}
+}
+
+func writeAddress(ts TimeSeries) string {
+	address := ""
+	if ts.Admin2 != "" {
+		address += ts.Admin2 + ", "
+	}
+	if ts.Address1 != "" {
+		address += ts.Address1 + ", "
+	}
+	if ts.Address2 != "" {
+		address += ts.Address2
+	}
+	return address
+}
+
+func writeRow(ts TimeSeries, date time.Time, death bool, recovered bool) []string {
+	arr := []string{strconv.Itoa(ts.Confirmed[date])}
+	if death {
+		arr = append(arr, strconv.Itoa(ts.Death[date]))
+	}
+	if recovered {
+		arr = append(arr, strconv.Itoa(ts.Recovered[date]))
+	}
+	return arr
 }
