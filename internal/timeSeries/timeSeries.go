@@ -233,100 +233,101 @@ func List(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
 }
 
+/* Preconditions:
+1. Dates are contiguous.
+2. The only column values with '/' are dates.
+*/
 func Create(w http.ResponseWriter, r *http.Request) {
-	// ts := TimeSeries{}
+	ts := TimeSeries{}
 
-	// reader := csv.NewReader(r.Body)
+	reader := csv.NewReader(r.Body)
 
-	// for {
-	// 	result, err := reader.Read()
-	// 	if err == io.EOF {
-	// 		break
-	// 	}
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
+	fmt.Println("running Create()")
 
-	// 	// Parse here
+	// get header names
+	result, err := reader.Read()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// 	/*for i := range result {
-	// 		// do something with result[i] <- value at ith column in 'result'
-	// 		fmt.Printf("	%v'n", result[i])
-	// 	}*/
+	// get beginDate and endDate
+	var beginDate time.Time
+	var endDate time.Time
+	beginFlag := false // true -> beginDate found; false Otherwise
+	endFlag := false
+	for i := range result {
+		if !beginFlag && strings.Contains(result[i], "/") {
+			beginDate = ParseDate(result[i]) // parses Date string -> time.Time
+			beginFlag = true
+		}
+		if !endFlag && strings.Contains(result[len(result)-i-1], "/") { // searches backwards in array
+			endDate = ParseDate(result[len(result)-i-1])
+			endFlag = true
+		}
+	}
+	for {
+		result, err = reader.Read()
+		fmt.Println("lets read")
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("done reading")
 
-	// 	/*
-	// 		if file, err := os.Open(FilePath); err != nil {
-	// 			log.Fatal("File read error", err)
-	// 			return
-	// 		}
-	// 		csvReader := csv.NewReader(f)
-	// 		if records, err := csvReader.ReadAll(); err != nil {
-	// 			log.Fatal(filePath + ": Parse file error", err)
-	// 		}
-	// 	*/
+		fmt.Println("before running")
+		// Assuming that we have successfully parsed to a TimeSeries struct
+		stmt, err := db.Db.Prepare("INSERT INTO TimeSeries(Admin2, Address1, Address2) VALUES(?,?,?)")
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("after running")
+		res, err := stmt.Exec(ts.Admin2, ts.Address1, ts.Address2)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	// 	// Assuming that we have successfully parsed to a TimeSeries struct
-	// 	stmt, err := db.Db.Prepare("INSERT INTO TimeSeries(Admin2, Address1, Address2) VALUES(?,?,?)")
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
+		id, err := res.LastInsertId()
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	// 	res, err := stmt.Exec(ts.Admin2, ts.Address1, ts.Address2)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
+		stmt, err = db.Db.Prepare("INSERT INTO TimeSeriesDate VALUES(?,?,?,?,?)")
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	// 	id, err := res.LastInsertId()
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
+		for date := beginDate; date != endDate.Add(time.Hour*24); date = date.AddDate(0, 0, 1) { // iterate between beginDate and endDate inclusive, incrementing by 1 Day
+			_, err := stmt.Exec(id, date, ts.Confirmed[date], ts.Death[date], ts.Recovered[date]) // gets values using Key "date_str"
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+		fmt.Println("hey")
+		//fmt.Println(result)
+	}
 
-	// 	stmt, err = db.Db.Prepare("INSERT INTO TimeSeriesDate VALUES(?,?,?,?,?)")
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
+}
 
-	// 	/* Preconditions:
-	// 	1. Dates are contiguous.
-	// 	2. The only column values with '/' are dates.
-	// 	*/
-	// 	colNames, err := db.Db.Query("SELECT Admin2, Address1, Address2 FROM TimeSeries")
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
+/**
+Helper function for Create().
+Takes Date string and returns type Date as type time.Time
 
-	// 	var beginDate time.Time
-	// 	var endDate time.Time
-	// 	beginFlag := false // true -> beginDate found; false Otherwise
-	// 	endFlag := false
-	// 	for i := range result {
-	// 		if !beginFlag && strings.Contains(colNames[i], "/") {
-	// 			temp := strings.Split(colNames[i], "/") // i.e. [ "1", "23", "20" ]
-	// 			beginDate = time.Date(temp[2].(int), temp[0].(int), temp[1].(int))
-	// 			beginFlag = true
-	// 		}
-	// 		if !endFlag && strings.Contains(colNames[len(colNames)-i-1], "/") { // searches backwards in array
-	// 			temp := strings.Split(colNames[i], "/")
-	// 			endDate = time.Date(temp[2].(int), temp[0].(int), temp[1].(int))
-	// 			endFlag = true
-	// 		}
-	// 	}
-	// 	for date := beginDate; date != endDate; date = date.AddDate(0, 0, 1) { // increment by 1 day
-	// 		date_str := date.String()
-	// 		res, err := stmt.Exec(id, date_str, ts.Confirmed[date_str], ts.Death[date_str], ts.Recovered[date_str]) // gets values using Key "date_str"
-	// 		if err != nil {
-	// 			log.Fatal(err)
-	// 		}
-	// 	}
-
-	// 	fmt.Println(result)
-	// }
-
-	// if _, err := w.Write([]byte("Successfully Uploaded Data")); err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// fmt.Println("Successfully Uploaded Data")
+*/
+func ParseDate(date string) (result time.Time) {
+	temp := strings.Split(date, "/") // i.e. "1/23/20" -> [ "1", "23", "20" ]
+	year, err := strconv.Atoi("20" + temp[2])
+	if err != nil {
+		log.Fatal(err)
+	}
+	month, err := strconv.Atoi(temp[0])
+	if err != nil {
+		log.Fatal(err)
+	}
+	day, err := strconv.Atoi(temp[1])
+	if err != nil {
+		log.Fatal(err)
+	}
+	result = time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
+	return
 }
 
 func Update(w http.ResponseWriter, r *http.Request) {
