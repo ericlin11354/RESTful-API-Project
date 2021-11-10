@@ -63,11 +63,14 @@ func nullHandler(ts *TimeSeries, values map[string]*sql.NullString) {
 
 func List(w http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
+	death, recovered := false, false
 
 	query := `
 		SELECT DISTINCT TimeSeries.ID, Admin2, Address1, Address2
-		FROM TimeSeries JOIN TimeSeriesDate
-		ON TimeSeries.ID = TimeSeriesDate.ID
+		FROM TimeSeries JOIN TimeSeriesConfirmed ON
+		TimeSeries.ID = TimeSeriesConfirmed.ID
+		JOIN TimeSeriesDeath ON TimeSeries.ID = TimeSeriesDeath.ID
+		JOIN TimeSeriesRecovered ON TimeSeries.ID = TimeSeriesRecovered.ID
 	`
 
 	i := 0
@@ -92,6 +95,16 @@ func List(w http.ResponseWriter, r *http.Request) {
 		if param == "to" {
 			param = "date"
 			op = "<="
+		}
+
+		// Displaying data
+		if param == "death" {
+			death = true
+			continue
+		}
+		if param == "recovered" {
+			recovered = true
+			continue
 		}
 
 		value := strings.Split(value[0], ",")
@@ -172,11 +185,24 @@ func List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Filling maps
+	// TODO: Decide if you want multiple views or 1 type at a time
+	columns := "TimeSeriesConfirmed.Date"
+	joinDeath := ""
+	joinRecover := ""
+	if death {
+		columns += ", Death"
+		joinDeath = "JOIN TimeSeriesDeath ON TimeSeriesConfirmed.ID = TimeSeriesDeath.ID"
+	}
+	if recovered {
+		columns += ", Recovered"
+		joinRecover = "JOIN TimeSeriesRecovered ON TimeSeriesConfirmed.ID = TimeSeriesRecovered.ID"
+	}
 	for _, ts := range tsArr {
 		query := fmt.Sprintf(`
-			SELECT Date, Confirmed, Death, Recovered FROM TimeSeriesDate
-			WHERE ID = %s
-		`, ts.ID)
+			SELECT %s FROM TimeSeriesConfirmed
+			%s %s
+			WHERE TimeSeriesConfirmed.ID = %s
+		`, columns, joinDeath, joinRecover, ts.ID)
 		stmt, err := db.Db.Prepare(query)
 		if err != nil {
 			log.Fatal(err)
@@ -191,14 +217,18 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			tsd := TimeSeriesDate{}
-			err := rows.Scan(&tsd.Date, &tsd.Confirmed, &tsd.Death, &tsd.Recovered)
+			err := rows.Scan(&tsd.Date, &tsd.Confirmed)
 			if err != nil {
 				log.Fatal(err)
 			}
 
 			ts.Confirmed[tsd.Date] = tsd.Confirmed
-			ts.Death[tsd.Date] = tsd.Death
-			ts.Recovered[tsd.Date] = tsd.Recovered
+			if death {
+				ts.Death[tsd.Date] = tsd.Death
+			}
+			if recovered {
+				ts.Recovered[tsd.Date] = tsd.Recovered
+			}
 		}
 	}
 
@@ -267,11 +297,11 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	// Broken
 	for i := range result {
 		if !beginFlag && strings.Contains(result[i], "/") {
-			beginDate = ParseDate(result[i]) // parses Date string -> time.Time
+			beginDate, _ = utils.ParseDate(result[i]) // parses Date string -> time.Time
 			beginFlag = true
 		}
 		if !endFlag && strings.Contains(result[len(result)-i-1], "/") { // searches backwards in array
-			endDate = ParseDate(result[len(result)-i-1])
+			endDate, _ = utils.ParseDate(result[len(result)-i-1])
 			endFlag = true
 		}
 	}
@@ -301,7 +331,9 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			log.Fatal(err)
 		}
 
-		stmt, err = db.Db.Prepare("INSERT INTO TimeSeriesDate VALUES(?,?,?,?,?)")
+		fileType := "Confirmed"
+		query := fmt.Sprintf("INSERT INTO TimeSeries%s VALUES(?,?,?,?,?)", fileType)
+		stmt, err = db.Db.Prepare(query)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -316,29 +348,6 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		//fmt.Println(result)
 	}
 
-}
-
-/**
-Helper function for Create().
-Takes Date string and returns type Date as type time.Time
-
-*/
-func ParseDate(date string) (result time.Time) {
-	temp := strings.Split(date, "/") // i.e. "1/23/20" -> [ "1", "23", "20" ]
-	year, err := strconv.Atoi("20" + temp[2])
-	if err != nil {
-		log.Fatal(err)
-	}
-	month, err := strconv.Atoi(temp[0])
-	if err != nil {
-		log.Fatal(err)
-	}
-	day, err := strconv.Atoi(temp[1])
-	if err != nil {
-		log.Fatal(err)
-	}
-	result = time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
-	return
 }
 
 func Update(w http.ResponseWriter, r *http.Request) {
