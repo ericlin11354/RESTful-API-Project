@@ -1,5 +1,11 @@
 package utils
 
+import (
+	"strconv"
+	"strings"
+	"time"
+)
+
 func ParamValidate(param string) (string, bool) {
 	validator := map[string]string{
 		"id":       "id",
@@ -14,4 +20,26 @@ func ParamValidate(param string) (string, bool) {
 	}
 	result, ok := validator[param]
 	return result, ok
+}
+
+/**
+Helper function for Create().
+Takes Date string and returns type Date as type time.Time
+
+*/
+func ParseDate(date string) (time.Time, error) {
+	temp := strings.Split(date, "/") // i.e. "1/23/20" -> [ "1", "23", "20" ]
+	year, err := strconv.Atoi("20" + temp[2])
+	if err != nil {
+		return time.Time{}, err
+	}
+	month, err := strconv.Atoi(temp[0])
+	if err != nil {
+		return time.Time{}, err
+	}
+	day, err := strconv.Atoi(temp[1])
+	if err != nil {
+		return time.Time{}, err
+	}
+	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local), nil
 }
