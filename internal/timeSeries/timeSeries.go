@@ -247,6 +247,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 2. The only column values with '/' are dates.
 */
 func Create(w http.ResponseWriter, r *http.Request) {
+	filetype := r.Header.Get("FileType") // i.e. Recovered, Confirms, Deaths
 	ts := TimeSeries{}
 
 	reader := csv.NewReader(r.Body)
@@ -259,6 +260,12 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 
+	// Directly access column values
+	var Admin2Index int
+	var Address1Index int
+	var Address2Index int
+	var beginDateIndex int
+
 	// get beginDate and endDate
 	var beginDate time.Time
 	var endDate time.Time
@@ -266,31 +273,49 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	endFlag := false
 	// Broken
 	for i := range result {
-		if !beginFlag && strings.Contains(result[i], "/") {
-			beginDate = ParseDate(result[i]) // parses Date string -> time.Time
+		if !beginFlag && len(strings.Split(result[i], "/")) == 3 {
+			beginDate, err = utils.ParseDate(result[i]) // parses Date string -> time.Time
+			if err != nil {
+				log.Fatal(err)
+			}
+			beginDateIndex = i
 			beginFlag = true
 		}
-		if !endFlag && strings.Contains(result[len(result)-i-1], "/") { // searches backwards in array
-			endDate = ParseDate(result[len(result)-i-1])
+		if !endFlag && len(strings.Split(result[len(result)-i-1], "/")) == 3 { // searches backwards in array
+			endDate, err = utils.ParseDate(result[len(result)-i-1])
+			if err != nil {
+				log.Fatal(err)
+			}
 			endFlag = true
 		}
 	}
 
+	for i := range result {
+		switch result[i] {
+		case "Admin2":
+			Admin2Index = i
+			break
+		case "Province/State":
+			Address1Index = i
+			break
+		case "Country/Region":
+			Address2Index = i
+			break
+		}
+	}
 	for {
 		result, err = reader.Read()
-		fmt.Println("lets read")
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Println("done reading")
-
-		fmt.Println("before running")
+		ts.Admin2 = result[Admin2Index]
+		ts.Address1 = result[Address1Index]
+		ts.Address2 = result[Address2Index]
 		// Assuming that we have successfully parsed to a TimeSeries struct
 		stmt, err := db.Db.Prepare("INSERT INTO TimeSeries(Admin2, Address1, Address2) VALUES(?,?,?)")
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Println("after running")
 		res, err := stmt.Exec(ts.Admin2, ts.Address1, ts.Address2)
 		if err != nil {
 			log.Fatal(err)
@@ -301,44 +326,39 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			log.Fatal(err)
 		}
 
-		stmt, err = db.Db.Prepare("INSERT INTO TimeSeriesDate VALUES(?,?,?,?,?)")
+		query := fmt.Sprintf("INSERT INTO TimeSeries%s VALUES(?,?,?)", filetype)
+		stmt, err = db.Db.Prepare(query)
 		if err != nil {
 			log.Fatal(err)
 		}
 
+		dateIndex := beginDateIndex
 		for date := beginDate; date != endDate.Add(time.Hour*24); date = date.AddDate(0, 0, 1) { // iterate between beginDate and endDate inclusive, incrementing by 1 Day
-			_, err := stmt.Exec(id, date, ts.Confirmed[date], ts.Death[date], ts.Recovered[date]) // gets values using Key "date_str"
+			val, err := strconv.Atoi(result[dateIndex])
 			if err != nil {
 				log.Fatal(err)
 			}
+			switch filetype {
+			case "Confirmed":
+				ts.Confirmed[date] = val
+				_, err = stmt.Exec(id, date, ts.Confirmed[date])
+				break
+			case "Deaths":
+				ts.Death[date] = val
+				_, err = stmt.Exec(id, date, ts.Death[date])
+				break
+			case "Recovered":
+				ts.Recovered[date] = val
+				_, err = stmt.Exec(id, date, ts.Recovered[date])
+				break
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+			//fmt.Println(date.String())
 		}
-		fmt.Println("hey")
-		//fmt.Println(result)
 	}
 
-}
-
-/**
-Helper function for Create().
-Takes Date string and returns type Date as type time.Time
-
-*/
-func ParseDate(date string) (result time.Time) {
-	temp := strings.Split(date, "/") // i.e. "1/23/20" -> [ "1", "23", "20" ]
-	year, err := strconv.Atoi("20" + temp[2])
-	if err != nil {
-		log.Fatal(err)
-	}
-	month, err := strconv.Atoi(temp[0])
-	if err != nil {
-		log.Fatal(err)
-	}
-	day, err := strconv.Atoi(temp[1])
-	if err != nil {
-		log.Fatal(err)
-	}
-	result = time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
-	return
 }
 
 func Update(w http.ResponseWriter, r *http.Request) {
