@@ -201,15 +201,21 @@ func List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if r.Header.Get("Accept") == "text/csv" {
-		fmt.Println("CSV pain :<")
-		// TODO: Convert json to csv somehow
+	tsArrJson, err := json.Marshal(tsArr)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	if r.Header.Get("Accept") == "text/csv" {
+		w.Header().Set("Content-Type", "text/csv")
+		fmt.Println("Converting to CSV")
+		// TODO: Convert json to csv somehow
 
-	if err = json.NewEncoder(w).Encode(tsArr); err != nil {
-		log.Fatal(err)
+	} else {
+		w.Header().Set("Content-Type", "application/json")
+		if _, err = w.Write(tsArrJson); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	w.WriteHeader(200)
