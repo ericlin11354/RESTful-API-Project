@@ -81,7 +81,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 			"active":    {},
 		}
 
-		err := row.Scan(&dr.Date, &dr.Date,
+		err := row.Scan(&dr.ID, &dr.Date,
 			ns["admin2"], ns["address1"], ns["address2"],
 			ni["confirmed"], ni["death"],
 			ni["recovered"], ni["active"],
@@ -110,7 +110,11 @@ func List(w http.ResponseWriter, r *http.Request) {
 		// Filling in respond in csv format
 		for _, dr := range drArr {
 			row := []string{
-				dr.ID, dr.Date.Format("2006/01/02"), dr.Admin2, dr.Address1, dr.Address2,
+				dr.ID,
+				dr.Date.Format("2006/01/02"),
+				dr.Admin2,
+				dr.Address1,
+				dr.Address2,
 				strconv.Itoa(dr.Confirmed),
 				strconv.Itoa(dr.Death),
 				strconv.Itoa(dr.Recovered),
@@ -118,10 +122,11 @@ func List(w http.ResponseWriter, r *http.Request) {
 			}
 			csvArr = append(csvArr, row)
 		}
+		// Write to buffer
 		if err := writer.WriteAll(csvArr); err != nil {
 			utils.HandleErr(w, 500, err)
 		}
-
+		// Write to response body
 		if _, err := w.Write(b.Bytes()); err != nil {
 			utils.HandleErr(w, 500, err)
 		}

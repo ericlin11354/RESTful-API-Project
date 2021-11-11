@@ -2,6 +2,8 @@ package dailyReports
 
 import (
 	"database/sql"
+	"encoding/json"
+	"io"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -189,6 +191,72 @@ func TestMakeQueryInvalidParams(t *testing.T) {
 	}
 }
 
-func TestList(t *testing.T) {
+func TestListNoParams(t *testing.T) {
 	db.InitDb()
+	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
+	w := httptest.NewRecorder()
+	List(w, r)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+
+	expectedCode := 200
+	if resp.StatusCode != expectedCode {
+		t.Fatalf("Test failed: expected code %d, got %d", expectedCode, resp.StatusCode)
+	}
+
+	// Assuming db not empty
+	drArr := []DailyReports{}
+	err := json.Unmarshal(body, &drArr)
+	if err != nil {
+		t.Errorf("Error during converting JSON: %v", err)
+	}
+
+	if len(drArr) == 0 {
+		t.Fatalf("Test failed: got empty response")
+	}
+}
+
+func TestListBadInputs(t *testing.T) {
+	db.InitDb()
+	r := httptest.NewRequest("GET", "http://example.com/foo?asdf=asd", nil)
+	w := httptest.NewRecorder()
+	List(w, r)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+
+	expectedCode := 400
+	if resp.StatusCode != expectedCode {
+		t.Fatalf("Test failed: expected code %d, got %d", expectedCode, resp.StatusCode)
+	}
+
+	expected := "Error status 400"
+	if string(body) != expected {
+		t.Fatalf("Test failed: expected body %s, got %s", expected, string(body))
+	}
+}
+
+func TestListAcceptCSV(t *testing.T) {
+	db.InitDb()
+	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
+	r.Header.Set("Accept", "text/csv")
+	w := httptest.NewRecorder()
+	List(w, r)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+	expected := "text/csv"
+	if res := resp.Header.Get("Content-Type"); expected != res {
+		t.Fatalf("Tested failed: expected header %s, got %s", expected, res)
+	}
+
+	lines := strings.Split(string(body), "\n")
+	header := lines[0]
+	expectedHeader := "ID,Date,Admin2,Province/State,Country/Region," +
+		"Confirmed,Death,Recovered,Active"
+
+	if header != expectedHeader {
+		t.Fatalf("Test failed: expected csvheader %s, got %s", expectedHeader, header)
+	}
 }

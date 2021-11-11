@@ -1,4 +1,6 @@
-image: golang:latest
+image: docker:20.10.10
+services:
+  - name: docker:20.10.10-dind
 
 variables:
   REPO_NAME: gitlab.com/csc301-assignments/a2
@@ -10,25 +12,61 @@ before_script:
 
   # Creating .env
   - cat $ENV_DEV > .env
+  - cat $ENV_DEV > ./internal/timeSeries/.env
+  - cat $ENV_DEV > ./internal/dailyReports.env
 
 stages:
   - build
   - test
+  - release
   - deploy
 
 build:
   stage: build
   script:
-    - echo build
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build --pull -t $CI_REGISTRY_IMAGE .
+    - docker push $CI_REGISTRY_IMAGE
 
 test:
+  image: golang:latest
   stage: test
   script:
     - go fmt $(go list ./... | grep -v /vendor/)
     - go vet $(go list ./... | grep -v /vendor/)
-    - go test -race $(go list ./... | grep -v /vendor/)
+    - go test -cover -race $(go list ./... | grep -v /vendor/)
+
+release:
+  stage: release
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CI_REGISTRY_IMAGE
+    - docker tag $CI_REGISTRY_IMAGE $CI_REGISTRY_IMAGE:latest
+    - docker push $CI_REGISTRY_IMAGE
 
 deploy:
+  image: kroniak/ssh-client
   stage: deploy
+  variables:
+    SSH_ARGS: -o StrictHostKeyChecking=no
+    PORT: 8080
+    CONTAINER_NAME: a1-api-dev
+  environment:
+    name: dev
+    url: http://34.130.252.55:8080/
   script:
-    - echo deploy
+    - chmod 400 $GCE_SSH_KEY
+    - ssh $SSH_ARGS -i $GCE_SSH_KEY $GCE_SSH_USERNAME@$SERVER_IP \
+      "sudo docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY"
+
+    - ssh $SSH_ARGS -i $GCE_SSH_KEY $GCE_SSH_USERNAME@$SERVER_IP \
+      "sudo docker stop $CONTAINER_NAME || true && sudo docker rm $CONTAINER_NAME || true"
+
+    - ssh $SSH_ARGS -i $GCE_SSH_KEY $GCE_SSH_USERNAME@$SERVER_IP \
+      "sudo docker rmi $CI_REGISTRY_IMAGE:latest || true"
+
+    - ssh $SSH_ARGS -i $GCE_SSH_KEY $GCE_SSH_USERNAME@$SERVER_IP \
+      "sudo docker pull $CI_REGISTRY_IMAGE"
+
+    - ssh $SSH_ARGS -i $GCE_SSH_KEY $GCE_SSH_USERNAME@$SERVER_IP \
+      "sudo docker run -p $PORT:$PORT -d --name $CONTAINER_NAME $CI_REGISTRY_IMAGE ./a2"
