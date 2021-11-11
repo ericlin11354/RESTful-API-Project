@@ -51,11 +51,8 @@ func ParseDate(date string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-<<<<<<< HEAD
 	if day < 0 || day > 31 {
 		return time.Time{}, errors.New("Day Syntax Error")
 	}
-=======
->>>>>>> 9aecf57 (Implemented timeSeries.go to account duplicate addresses. Replaced time.Local with time.UTC in utils.go)
 	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC), nil
 }
