@@ -276,42 +276,96 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		}
 		ts.Address1 = result[Address1Index]
 		ts.Address2 = result[Address2Index]
-		// Assuming that we have successfully parsed to a TimeSeries struct
-		var query string
-		if Admin2Index >= 0 {
-			query = "INSERT INTO TimeSeries(Admin2, Address1, Address2) VALUES(?,?,?)"
-		} else {
-			query = "INSERT INTO TimeSeries(Address1, Address2) VALUES(?,?)"
+
+		// check if address exists
+		var (
+			ID            int64
+			Address1      string
+			Address2      string
+			AddressExists bool
+		)
+		rows, err := db.Db.Query(`
+			SELECT ID, Address1, Address2 FROM TimeSeries
+			`)
+		if err != nil {
+			log.Fatal(err)
 		}
+		defer rows.Close()
+		for rows.Next() {
+			err = rows.Scan(&ID, &Address1, &Address2)
+			if err != nil {
+				log.Fatal(err)
+			}
+			if Address1 == ts.Address1 && Address2 == ts.Address2 {
+				AddressExists = true
+				fmt.Println("Found existing address")
+			}
+		}
+
+		var (
+			id    int64
+			query string
+		)
+		if AddressExists { // If an address exists, we simply use its id
+			id = ID
+		} else { // Else, inject a new address
+			if Admin2Index >= 0 {
+				query = "INSERT INTO TimeSeries(Admin2, Address1, Address2) VALUES(?,?,?)"
+			} else {
+				query = "INSERT INTO TimeSeries(Address1, Address2) VALUES(?,?)"
+			}
+			stmt, err := db.Db.Prepare(query)
+			if err != nil {
+				log.Fatal(err)
+			}
+			var res sql.Result
+			if Admin2Index >= 0 {
+				res, err = stmt.Exec(ts.Admin2, ts.Address1, ts.Address2)
+			} else {
+				res, err = stmt.Exec(ts.Address1, ts.Address2)
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			id, err = res.LastInsertId()
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+
+		query = fmt.Sprintf("INSERT INTO TimeSeries%s VALUES(?,?,?)", filetype)
 		stmt, err := db.Db.Prepare(query)
 		if err != nil {
 			log.Fatal(err)
 		}
-		var res sql.Result
-		if Admin2Index >= 0 {
-			res, err = stmt.Exec(ts.Admin2, ts.Address1, ts.Address2)
-		} else {
-			res, err = stmt.Exec(ts.Address1, ts.Address2)
-		}
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		id, err := res.LastInsertId()
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		query = fmt.Sprintf("INSERT INTO TimeSeries%s VALUES(?,?,?)", filetype)
-		stmt, err = db.Db.Prepare(query)
-		if err != nil {
-			log.Fatal(err)
-		}
-
+		//fmt.Println("hello")
 		ts.Confirmed = make(map[time.Time]int)
 		ts.Death = make(map[time.Time]int)
 		ts.Recovered = make(map[time.Time]int)
 
+		/*var (
+			Date      string
+			Confirmed int
+		)
+		rows, err = db.Db.Query(fmt.Sprintf(`
+				SELECT * FROM TimeSeries%s`, filetype))
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			err := rows.Scan(&ID, &Date, &Confirmed)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println(ID, Date, Confirmed)
+		}*/
+
+		var (
+			Date time.Time
+			Type int
+		)
 		dateIndex := beginDateIndex
 		for date := beginDate; date != endDate.Add(time.Hour*24); date = date.AddDate(0, 0, 1) { // iterate between beginDate and endDate inclusive, incrementing by 1 Day
 			val, err := strconv.Atoi(result[dateIndex])
@@ -319,6 +373,37 @@ func Create(w http.ResponseWriter, r *http.Request) {
 				log.Fatal(err)
 			}
 			//fmt.Printf("hewwo %v\n", date.String())
+
+			// Find row with existing id and date
+			rows, err := db.Db.Query(fmt.Sprintf(`
+			SELECT * FROM TimeSeries%s
+			`, filetype))
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer rows.Close()
+			for rows.Next() {
+				err := rows.Scan(&ID, &Date, &Type)
+				if err != nil {
+					log.Fatal(err)
+				}
+				//fmt.Println(ID, id, Date.Format("2006-1-2"), date.Format("2006-1-2"))
+				if ID == id && Date.Format("2006-1-2") == date.Format("2006-1-2") {
+					/*rows, err = db.Db.Exec(fmt.Sprintf(`
+					DELETE FROM TimeSeries%s
+					WHERE ID = %s AND Date = %v`,
+					filetype, id, date))*/
+					//fmt.Println(date)
+					//fmt.Println(Date)
+					_, err = db.Db.Exec(fmt.Sprintf(`
+					DELETE FROM TimeSeries%s
+					WHERE ID = %d AND Date = '%s'`, filetype, ID, Date.Format("2006-1-2"))) // remove based on
+					if err != nil {
+						log.Fatal(err)
+					}
+				}
+			}
+
 			switch filetype {
 			case "Confirmed":
 				ts.Confirmed[date] = val
