@@ -29,7 +29,6 @@ func ParamValidate(param string) (string, bool) {
 /**
 Helper function for Create().
 Takes Date string and returns type Date as type time.Time
-
 */
 func ParseDate(date string) (time.Time, error) {
 	temp := strings.Split(date, "/") // i.e. "mm/dd/yy" -> [ "mm", "dd", "yy" ]
@@ -64,7 +63,6 @@ func ParseDate(date string) (time.Time, error) {
 Helper function for Create().
 Iterate from index until end of arr, checking for duplicate string
 Return true if duplicate exists. Otherwise, return false
-
 */
 func HasDupe(index int, arr []string) bool {
 	// Check for duplicate dates
