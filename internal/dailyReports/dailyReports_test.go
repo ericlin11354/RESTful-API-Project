@@ -192,7 +192,8 @@ func TestMakeQueryInvalidParams(t *testing.T) {
 }
 
 func TestListNoParams(t *testing.T) {
-	db.InitDb()
+	testing := true
+	db.InitDb(testing)
 	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w := httptest.NewRecorder()
 	List(w, r)
@@ -218,7 +219,8 @@ func TestListNoParams(t *testing.T) {
 }
 
 func TestListBadInputs(t *testing.T) {
-	db.InitDb()
+	testing := true
+	db.InitDb(testing)
 	r := httptest.NewRequest("GET", "http://example.com/foo?asdf=asd", nil)
 	w := httptest.NewRecorder()
 	List(w, r)
@@ -238,7 +240,8 @@ func TestListBadInputs(t *testing.T) {
 }
 
 func TestListAcceptCSV(t *testing.T) {
-	db.InitDb()
+	testing := true
+	db.InitDb(testing)
 	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
 	r.Header.Set("Accept", "text/csv")
 	w := httptest.NewRecorder()
