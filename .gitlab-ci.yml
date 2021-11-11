@@ -11,9 +11,9 @@ before_script:
   - cd $GOPATH/src/$REPO_NAME
 
   # Creating .env
-  - cat $ENV_DEV > .env
-  - cat $ENV_DEV > ./internal/timeSeries/.env
-  - cat $ENV_DEV > ./internal/dailyReports.env
+  - cat $ENV > .env
+  - cat $ENV > ./internal/timeSeries/.env
+  - cat $ENV > ./internal/dailyReports.env
 
 stages:
   - build
@@ -50,23 +50,23 @@ deploy:
   variables:
     SSH_ARGS: -o StrictHostKeyChecking=no
     PORT: 8080
-    CONTAINER_NAME: a1-api-dev
+    CONTAINER_NAME: a2
   environment:
     name: dev
-    url: http://34.130.252.55:8080/
+    url: http://34.130.134.25:8080/
   script:
-    - chmod 400 $GCE_SSH_KEY
-    - ssh $SSH_ARGS -i $GCE_SSH_KEY $GCE_SSH_USERNAME@$SERVER_IP \
+    - chmod 400 $SSH_KEY
+    - ssh $SSH_ARGS -i $SSH_KEY $SSH_USERNAME@$GCE_IP \
       "sudo docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY"
 
-    - ssh $SSH_ARGS -i $GCE_SSH_KEY $GCE_SSH_USERNAME@$SERVER_IP \
+    - ssh $SSH_ARGS -i $SSH_KEY $SSH_USERNAME@$GCE_IP \
       "sudo docker stop $CONTAINER_NAME || true && sudo docker rm $CONTAINER_NAME || true"
 
-    - ssh $SSH_ARGS -i $GCE_SSH_KEY $GCE_SSH_USERNAME@$SERVER_IP \
+    - ssh $SSH_ARGS -i $SSH_KEY $SSH_USERNAME@$GCE_IP \
       "sudo docker rmi $CI_REGISTRY_IMAGE:latest || true"
 
-    - ssh $SSH_ARGS -i $GCE_SSH_KEY $GCE_SSH_USERNAME@$SERVER_IP \
+    - ssh $SSH_ARGS -i $SSH_KEY $SSH_USERNAME@$GCE_IP \
       "sudo docker pull $CI_REGISTRY_IMAGE"
 
-    - ssh $SSH_ARGS -i $GCE_SSH_KEY $GCE_SSH_USERNAME@$SERVER_IP \
+    - ssh $SSH_ARGS -i $SSH_KEY $SSH_USERNAME@$GCE_IP \
       "sudo docker run -p $PORT:$PORT -d --name $CONTAINER_NAME $CI_REGISTRY_IMAGE ./a2"

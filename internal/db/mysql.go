@@ -49,5 +49,6 @@ func InitDb(testing ...bool) {
 
 	// Successfully intialized connection to db
 	Db = db
-	fmt.Println("Connected to db")
+	print := fmt.Sprintf("Connected to @%s:%s/%s", dbTCPHost, dbPort, dbName)
+	fmt.Println(print)
 }

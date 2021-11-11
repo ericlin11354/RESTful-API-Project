@@ -78,6 +78,6 @@ CREATE TABLE DailyReports(
 INSERT INTO DailyReports(Date, Admin2, Address1, Address2, Confirmed, Death, Recovered, Active)
 VALUES("2020/06/05", 'Abbeville', 'South Carolina', 'US', 47,0,0,47),
 VALUES("2020/01/31", 'Abbeville', 'South Carolina', 'US', 1,2,3,4);
-INSERT INTO DailyReports(Date, Address1, Address2, Confirmed, Death, Recovered, Active)
-VALUES("2020/02/14", 'Ontario', 'Canada', 5,6,7,8),
-VALUES("2020/11/16", 'British Columbia', 'Canada', 301,343,369,373);
+INSERT INTO DailyReports(Date, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES
+("2020/02/14", 'Ontario', 'Canada', 5,6,7,8),
+("2020/11/16", 'British Columbia', 'Canada', 301,343,369,373);
