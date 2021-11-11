@@ -550,3 +550,87 @@ func TestListCSVRequests(t *testing.T) {
 		t.Fatalf("Test failed: expected %s, got %s", expected, line[0])
 	}
 }
+
+//test GetDates()
+func TestGetSingleDate(t *testing.T) {
+	arr := []string{"1/20/21"}
+	beginDate, endDate, beginDateIndex, err := getDates(arr)
+	expectedBeginDate := time.Date(2021, 1, 20, 0, 0, 0, 0, time.UTC)
+	expectedEndDate := beginDate
+
+	if beginDate != expectedBeginDate {
+		t.Fatalf("Test failed: expected value %s, got %s", expectedBeginDate.String(), beginDate.String())
+	}
+
+	if endDate != expectedEndDate {
+		t.Fatalf("Test failed: expected value %s, got %v", expectedEndDate.String(), endDate.String())
+	}
+
+	if beginDateIndex != 0 {
+		t.Fatalf("Test failed: expected value 0, got %s", beginDate.String())
+	}
+
+	if err != nil {
+		t.Errorf("Error occured when getting single date: %v", err)
+	}
+}
+
+func TestGetEmptyData(t *testing.T) {
+	var arr []string
+	beginDate, endDate, beginDateIndex, err := getDates(arr)
+	expectedBeginDate := time.Time{}
+
+	if beginDate != expectedBeginDate {
+		t.Fatalf("Test failed: expected value %s, got %s", expectedBeginDate.String(), beginDate.String())
+	}
+	if endDate != expectedBeginDate {
+		t.Fatalf("Test failed: expected value %s, got %s", expectedBeginDate.String(), endDate.String())
+	}
+	if beginDateIndex != -1 {
+		t.Fatalf("Test failed: expected value -1, got %s", beginDate.String())
+	}
+	if err != nil {
+		t.Errorf("Error occured when getting no date: %v", err)
+	}
+}
+
+func TestGetThreeDates(t *testing.T) {
+	arr := []string{"1/20/21", "1/22/21", "1/30/21"}
+	beginDate, endDate, beginDateIndex, err := getDates(arr)
+	expectedBeginDate := time.Date(2021, 1, 20, 0, 0, 0, 0, time.UTC)
+	expectedEndDate := time.Date(2021, 1, 30, 0, 0, 0, 0, time.UTC)
+
+	if beginDate != expectedBeginDate {
+		t.Fatalf("Test failed: expected value %s, got %s", expectedBeginDate.String(), beginDate.String())
+	}
+
+	if endDate != expectedEndDate {
+		t.Fatalf("Test failed: expected value %s, got %v", expectedEndDate.String(), endDate.String())
+	}
+
+	if beginDateIndex != 0 {
+		t.Fatalf("Test failed: expected value 0, got %s", beginDate.String())
+	}
+
+	if err != nil {
+		t.Errorf("Error occured when getting single date: %v", err)
+	}
+}
+
+// test injectTimeSeries
+// NOTE: tests assume that database is setup according to create-tables.sql
+func TestInjectExistingTimeSeries(t *testing.T) {
+	var ts TimeSeries
+	ts.Admin2 = "Autauga"
+	ts.Address1 = "Alabama"
+	ts.Address2 = "US"
+	id, err := injectTimeSeries(0, ts)
+	var expectedId int64 = 1
+
+	if expectedId != id {
+		t.Fatalf("Test failed: expected id 1, got %d", id)
+	}
+	if err != nil {
+		t.Errorf("Error occured when injecting existing record: %v", err)
+	}
+}

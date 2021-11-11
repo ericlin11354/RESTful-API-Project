@@ -299,7 +299,7 @@ func getDates(result []string) (time.Time, time.Time, int, error) {
 	var (
 		beginDate      time.Time
 		endDate        time.Time
-		beginDateIndex int
+		beginDateIndex int = -1
 		err            error
 	)
 	beginFlag := false // true -> beginDate found; false Otherwise
@@ -329,23 +329,26 @@ func injectTimeSeries(Admin2Index int, ts TimeSeries) (int64, error) {
 	// check if address exists
 	var (
 		ID            int64
+		Admin2        sql.NullString
 		Address1      string
 		Address2      string
 		AddressExists bool
 	)
 	rows, err := db.Db.Query(`
-		SELECT ID, Address1, Address2 FROM TimeSeries
+		SELECT ID, Admin2, Address1, Address2 FROM TimeSeries
 		`)
 	if err != nil {
 		return -1, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		err = rows.Scan(&ID, &Address1, &Address2)
+		err = rows.Scan(&ID, &Admin2, &Address1, &Address2)
 		if err != nil {
 			return -1, err
 		}
-		if Address1 == ts.Address1 && Address2 == ts.Address2 {
+		if Admin2Index >= 0 && Admin2.String == ts.Admin2 && Address1 == ts.Address1 && Address2 == ts.Address2 {
+			AddressExists = true
+		} else if Address1 == ts.Address1 && Address2 == ts.Address2 {
 			AddressExists = true
 		}
 	}
