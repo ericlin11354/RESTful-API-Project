@@ -52,9 +52,6 @@ deploy:
     SSH_ARGS: -o StrictHostKeyChecking=no
     PORT: 8080
     CONTAINER_NAME: a2
-  environment:
-    name: dev
-    url: http://34.130.134.25:8080/
   script:
     - chmod 400 $SSH_KEY
     - ssh $SSH_ARGS -i $SSH_KEY $SSH_USERNAME@$GCE_IP \
