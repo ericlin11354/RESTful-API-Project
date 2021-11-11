@@ -49,7 +49,7 @@ func Routes() chi.Router {
 }
 
 func List(w http.ResponseWriter, r *http.Request) {
-	query, death, recovered, status := makeQuery(r.URL.Query())
+	query, dates, death, recovered, status := makeQuery(r.URL.Query())
 	if status == 400 {
 		w.WriteHeader(400)
 		if _, err := w.Write([]byte("Error 400: Invalid Input")); err != nil {
@@ -107,8 +107,8 @@ func List(w http.ResponseWriter, r *http.Request) {
 	for _, ts := range tsArr {
 		query := fmt.Sprintf(`
 			SELECT %s FROM TimeSeries%s
-			WHERE ID = %s
-		`, columns, typeStr, ts.ID)
+			WHERE ID = %s %s
+		`, columns, typeStr, ts.ID, dates)
 
 		stmt, err := db.Db.Prepare(query)
 		if err != nil {
@@ -158,7 +158,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 		// Writing response in CSV
 		for _, ts := range tsArr {
-			data := map[time.Time]int{}
+			var data map[time.Time]int
 			if typeStr == "Confirmed" {
 				data = ts.Confirmed
 			} else if typeStr == "Death" {
@@ -347,16 +347,26 @@ func Update(w http.ResponseWriter, r *http.Request) {
 }
 
 // Helper functions
-func makeQuery(params map[string][]string) (string, bool, bool, int) {
+func makeQuery(params map[string][]string) (string, string, bool, bool, int) {
+	query := `
+		SELECT DISTINCT TimeSeries.ID, Admin2, Address1, Address2
+		FROM TimeSeries JOIN TimeSeriesConfirmed ON
+		TimeSeries.ID = TimeSeriesConfirmed.ID
+		JOIN TimeSeriesDeath ON TimeSeries.ID = TimeSeriesDeath.ID
+		JOIN TimeSeriesRecovered ON TimeSeries.ID = TimeSeriesRecovered.ID
+	`
+	dates := ""
 	death, recovered := false, false
+	if len(params) == 0 {
+		return query, dates, death, recovered, 0
+	}
+
 	formattedParams := map[string][]string{}
 	// Validating params
 	for param, value := range params {
-		param = strings.ToLower(param)
-
-		var valid bool
-		if param, valid = utils.ParamValidate(param); !valid {
-			return "", false, false, 400
+		param, valid := utils.ParamValidate(param)
+		if !valid {
+			return "", dates, false, false, 400
 		}
 		formattedParams[param] = value
 	}
@@ -370,18 +380,11 @@ func makeQuery(params map[string][]string) (string, bool, bool, int) {
 
 	// Mutually exclusive
 	if death && recovered {
-		return "", false, false, 400
+		return "", dates, false, false, 400
 	}
 
-	query := `
-		SELECT DISTINCT TimeSeries.ID, Admin2, Address1, Address2
-		FROM TimeSeries JOIN TimeSeriesConfirmed ON
-		TimeSeries.ID = TimeSeriesConfirmed.ID
-		JOIN TimeSeriesDeath ON TimeSeries.ID = TimeSeriesDeath.ID
-		JOIN TimeSeriesRecovered ON TimeSeries.ID = TimeSeriesRecovered.ID
-	`
-
-	i := 0 // counter for 'WHERE'
+	dateCounter := 0
+	whereCounter := 0 // counter for 'WHERE'
 	for param, value := range formattedParams {
 		// Displaying data
 		if param == "death" {
@@ -405,40 +408,55 @@ func makeQuery(params map[string][]string) (string, bool, bool, int) {
 		}
 
 		value := strings.Split(value[0], ",")
-
-		for j, v := range value {
+		for i, v := range value {
 			// Format string for SQL
 			stringParams := map[string]string{
 				"admin2":   fmt.Sprintf(`'%s'`, v),
 				"address1": fmt.Sprintf(`'%s'`, v),
 				"address2": fmt.Sprintf(`'%s'`, v),
-				"date":     fmt.Sprintf(`'%s'`, v),
+				"date":     "",
 			}
 			_, ok := stringParams[param]
 			if ok {
 				if param == "date" {
-					if _, err := utils.ParseDate(v); err != nil {
-						return "", false, false, 400
+					// mm/dd/yy
+					temp, err := utils.ParseDate(v)
+					if err != nil {
+						return "", "", false, false, 400
 					}
+					value[i] = temp.Format("2006/1/2")
+					value[i] = fmt.Sprintf(`"%s"`, value[i])
+
+					// Put to dates string, skip to next param
+					if dateCounter == 0 {
+						dates += "AND " + param + op + value[i]
+						dateCounter++
+					} else {
+						dates += " OR " + param + op + value[i]
+					}
+					if i == len(value)-1 {
+						param = fmt.Sprintf("TimeSeries%s.Date", getType(death, recovered))
+					}
+					continue
+				} else {
+					value[i] = stringParams[param]
 				}
-				value[j] = stringParams[param]
 			}
 
 			// Format first param and after
-			if i == 0 {
-				query += "\tWHERE " + param + op + value[j]
-				i++
+			if whereCounter == 0 {
+				query += "\tWHERE " + param + op + value[i]
+				whereCounter++
 			} else {
-				if j != 0 {
-					query += " OR " + param + op + value[j]
+				if i != 0 {
+					query += " OR " + param + op + value[i]
 				} else {
-					query += " AND " + param + op + value[j]
+					query += " AND " + param + op + value[i]
 				}
 			}
 		}
 	}
-
-	return query, death, recovered, 0
+	return query, dates, death, recovered, 0
 }
 
 func getType(d bool, r bool) string {

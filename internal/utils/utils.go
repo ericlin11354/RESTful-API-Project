@@ -8,6 +8,7 @@ import (
 )
 
 func ParamValidate(param string) (string, bool) {
+	param = strings.ToLower(param)
 	validator := map[string]string{
 		"id":        "id",
 		"admin2":    "admin2",
@@ -31,7 +32,7 @@ Takes Date string and returns type Date as type time.Time
 
 */
 func ParseDate(date string) (time.Time, error) {
-	temp := strings.Split(date, "/") // i.e. "1/23/20" -> [ "1", "23", "20" ]
+	temp := strings.Split(date, "/") // i.e. "mm/dd/yy" -> [ "mm", "dd", "yy" ]
 	if len(temp) != 3 {
 		return time.Time{}, errors.New("Syntax Error")
 	}
@@ -43,9 +44,15 @@ func ParseDate(date string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
+	if month < 0 || month > 12 {
+		return time.Time{}, errors.New("Month Syntax Error")
+	}
 	day, err := strconv.Atoi(temp[1])
 	if err != nil {
 		return time.Time{}, err
+	}
+	if day < 0 || day > 31 {
+		return time.Time{}, errors.New("Day Syntax Error")
 	}
 	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local), nil
 }
