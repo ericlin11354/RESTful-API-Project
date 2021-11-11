@@ -321,7 +321,7 @@ func injectTimeSeries(Admin2Index int, ts TimeSeries) (int64, error) {
 	var (
 		ID            int64
 		Admin2        sql.NullString
-		Address1      string
+		Address1      sql.NullString
 		Address2      string
 		AddressExists bool
 	)
@@ -337,10 +337,10 @@ func injectTimeSeries(Admin2Index int, ts TimeSeries) (int64, error) {
 		if err != nil {
 			return -1, err
 		}
-		if Admin2Index >= 0 && Admin2.String == ts.Admin2 && Address1 == ts.Address1 && Address2 == ts.Address2 {
-			AddressExists = true
-			break
-		} else if Address1 == ts.Address1 && Address2 == ts.Address2 {
+		if Admin2.Valid && Admin2.String == ts.Admin2 {
+			continue
+		}
+		if Address1.String == ts.Address1 && Address2 == ts.Address2 {
 			AddressExists = true
 			break
 		}
@@ -353,20 +353,28 @@ func injectTimeSeries(Admin2Index int, ts TimeSeries) (int64, error) {
 	if AddressExists { // If an address exists, we simply use its id
 		id = ID
 	} else { // Else, inject a new address
-		if Admin2Index >= 0 {
+		if Admin2Index >= 0 && len(ts.Address1) > 0 {
 			query = "INSERT INTO TimeSeries(Admin2, Address1, Address2) VALUES(?,?,?)"
-		} else {
+		} else if Admin2Index < 0 && len(ts.Address1) > 0 {
 			query = "INSERT INTO TimeSeries(Address1, Address2) VALUES(?,?)"
+		} else if Admin2Index >= 0 && len(ts.Address1) == 0 {
+			query = "INSERT INTO TimeSeries(Admin2, Address2) VALUES(?,?)"
+		} else if Admin2Index < 0 && len(ts.Address1) == 0 {
+			query = "INSERT INTO TimeSeries(Address2) VALUES(?)"
 		}
 		stmt, err := db.Db.Prepare(query)
 		if err != nil {
 			return -1, err
 		}
 		var res sql.Result
-		if Admin2Index >= 0 {
+		if Admin2Index >= 0 && len(ts.Address1) > 0 {
 			res, err = stmt.Exec(ts.Admin2, ts.Address1, ts.Address2)
-		} else {
+		} else if Admin2Index < 0 && len(ts.Address1) > 0 {
 			res, err = stmt.Exec(ts.Address1, ts.Address2)
+		} else if Admin2Index >= 0 && len(ts.Address1) == 0 {
+			res, err = stmt.Exec(ts.Admin2, ts.Address2)
+		} else if Admin2Index < 0 && len(ts.Address1) == 0 {
+			res, err = stmt.Exec(ts.Address2)
 		}
 		if err != nil {
 			return -1, err
