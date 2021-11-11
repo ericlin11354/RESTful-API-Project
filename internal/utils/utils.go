@@ -54,5 +54,5 @@ func ParseDate(date string) (time.Time, error) {
 	if day < 0 || day > 31 {
 		return time.Time{}, errors.New("Day Syntax Error")
 	}
-	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local), nil
+	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC), nil
 }
