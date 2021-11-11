@@ -398,8 +398,7 @@ func TestMakeQuery(t *testing.T) {
 // text/html; charset=utf-8
 // <html><body>Hello World!</body></html>
 func TestListDefault(t *testing.T) {
-	testing := true
-	db.InitDb(testing)
+	db.InitDb("testing")
 	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w := httptest.NewRecorder()
 	List(w, r)
@@ -435,8 +434,7 @@ func TestListDefault(t *testing.T) {
 }
 
 func TestListWithParams(t *testing.T) {
-	testing := true
-	db.InitDb(testing)
+	db.InitDb("testing")
 	r := httptest.NewRequest("GET", "http://example.com/foo?country=us,canada&from=1/1/20", nil)
 	w := httptest.NewRecorder()
 	List(w, r)
@@ -490,8 +488,7 @@ func TestListWithParams(t *testing.T) {
 }
 
 func TestListBadRequests(t *testing.T) {
-	testing := true
-	db.InitDb(testing)
+	db.InitDb("testing")
 	r := httptest.NewRequest("GET", "http://example.com/foo?asdfjk", nil)
 	w := httptest.NewRecorder()
 	List(w, r)
@@ -510,8 +507,7 @@ func TestListBadRequests(t *testing.T) {
 }
 
 func TestListCSVRequests(t *testing.T) {
-	testing := true
-	db.InitDb(testing)
+	db.InitDb("testing")
 	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
 	r.Header.Set("Accept", "text/csv")
 	w := httptest.NewRecorder()

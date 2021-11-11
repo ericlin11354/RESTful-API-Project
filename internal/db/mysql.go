@@ -14,11 +14,16 @@ import (
 
 var Db *sql.DB
 
-func InitDb(testing ...bool) {
+func InitDb(stage ...string) {
 	env := []string{"DB_USER", "DB_PASS", "DB_HOST", "DB_PORT", "DB_NAME"}
-	if len(testing) > 0 {
-		env = []string{"DB_TEST_USER", "DB_TEST_PASS",
-			"DB_TEST_HOST", "DB_TEST_PORT", "DB_TEST_NAME"}
+	if len(stage) > 0 {
+		if stage[0] == "testing" {
+			env = []string{"DB_TEST_USER", "DB_TEST_PASS",
+				"DB_TEST_HOST", "DB_TEST_PORT", "DB_TEST_NAME"}
+		} else if stage[0] == "local" {
+			env = []string{"DB_LOCAL_USER", "DB_LOCAL_PASS",
+				"DB_LOCAL_HOST", "DB_LOCAL_PORT", "DB_LOCAL_NAME"}
+		}
 	}
 
 	if err := godotenv.Load(); err != nil {
