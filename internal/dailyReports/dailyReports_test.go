@@ -3,7 +3,10 @@ package dailyReports
 import (
 	"database/sql"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	db "gitlab.com/csc301-assignments/a2/internal/db"
 )
 
 func TestNullStringHandler(t *testing.T) {
@@ -93,7 +96,99 @@ func TestNullIntHandler(t *testing.T) {
 	}
 }
 
-func TestMakeQuery(t *testing.T) {
+func TestMakeQueryNoParams(t *testing.T) {
 	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
-	makeQuery(r.URL.Query())
+	query, status := makeQuery(r.URL.Query())
+	expected := strings.TrimSpace(`
+		SELECT ID, Date, Admin2, Address1, Address2,
+		Confirmed, Death, Recovered, Active
+		FROM DailyReports
+	`)
+	query = strings.TrimSpace(query)
+	if query != expected {
+		t.Fatalf("Test failed: expected %s, got %s", expected, query)
+	}
+
+	expectedStatus := 0
+	if status != expectedStatus {
+		t.Fatalf("Test failed: expected %d, got %d", expectedStatus, status)
+	}
+}
+
+func TestMakeQueryWithDateParams(t *testing.T) {
+	// Date params
+	r := httptest.NewRequest(
+		"GET",
+		"http://example.com/foo?from=1/1/20&to=1/1/22&date=11/16/20,2/14/21",
+		nil)
+	query, _ := makeQuery(r.URL.Query())
+	lines := strings.Split(query, "\n")
+	lastline := lines[len(lines)-1]
+
+	checker := "date>=\"2020/1/1\""
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+
+	checker = "date<=\"2022/1/1\""
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+
+	checker = "date=\"2020/11/16\""
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+
+	checker = "date=\"2021/2/14\""
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+}
+
+func TestMakeQueryWithAddressParams(t *testing.T) {
+	r := httptest.NewRequest("GET", "http://example.com/foo?country=canada,us&province=ontario&admin2=toronto", nil)
+	query, _ := makeQuery(r.URL.Query())
+	lines := strings.Split(query, "\n")
+	lastline := lines[len(lines)-1]
+
+	checker := "address2='canada'"
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+
+	checker = "address2='us'"
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+
+	checker = "address1='ontario'"
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+
+	checker = "admin2='toronto'"
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+}
+
+func TestMakeQueryInvalidParams(t *testing.T) {
+	// params not right
+	r := httptest.NewRequest("GET", "http://example.com/foo?abc=def", nil)
+	_, status := makeQuery(r.URL.Query())
+	if status != 400 {
+		t.Fatalf("Test failed: response status (%d) not 400", status)
+	}
+
+	// date incorrect format
+	r = httptest.NewRequest("GET", "http://example.com/foo?date=abc", nil)
+	_, status = makeQuery(r.URL.Query())
+	if status != 400 {
+		t.Fatalf("Test failed: response status (%d) not 400", status)
+	}
+}
+
+func TestList(t *testing.T) {
+	db.InitDb()
 }

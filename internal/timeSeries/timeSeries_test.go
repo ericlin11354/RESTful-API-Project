@@ -4,35 +4,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
-	"log"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi"
-	"github.com/joho/godotenv"
-
 	db "gitlab.com/csc301-assignments/a2/internal/db"
 	"gitlab.com/csc301-assignments/a2/internal/utils"
 )
-
-func ConnectToDb() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatal(err)
-	}
-
-	// Initialize Chi Router
-	r := chi.NewRouter()
-
-	// Initizalize database and migrate
-	testing := true
-	db.InitDb(testing)
-
-	// Creating endpoints
-	r.Mount("/time_series", Routes())
-	r.Mount("/daily_reports", Routes())
-}
 
 // Testing helper functions
 func TestGetType(t *testing.T) {
@@ -419,7 +398,7 @@ func TestMakeQuery(t *testing.T) {
 // text/html; charset=utf-8
 // <html><body>Hello World!</body></html>
 func TestListDefault(t *testing.T) {
-	ConnectToDb()
+	db.InitDb()
 	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w := httptest.NewRecorder()
 	List(w, r)
@@ -455,7 +434,7 @@ func TestListDefault(t *testing.T) {
 }
 
 func TestListWithParams(t *testing.T) {
-	ConnectToDb()
+	db.InitDb()
 	r := httptest.NewRequest("GET", "http://example.com/foo?country=us,canada&from=1/1/20", nil)
 	w := httptest.NewRecorder()
 	List(w, r)
@@ -509,7 +488,7 @@ func TestListWithParams(t *testing.T) {
 }
 
 func TestListBadRequests(t *testing.T) {
-	ConnectToDb()
+	db.InitDb()
 	r := httptest.NewRequest("GET", "http://example.com/foo?asdfjk", nil)
 	w := httptest.NewRecorder()
 	List(w, r)
@@ -528,7 +507,7 @@ func TestListBadRequests(t *testing.T) {
 }
 
 func TestListCSVRequests(t *testing.T) {
-	ConnectToDb()
+	db.InitDb()
 	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
 	r.Header.Set("Accept", "text/csv")
 	w := httptest.NewRecorder()

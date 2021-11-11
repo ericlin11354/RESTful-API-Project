@@ -168,8 +168,12 @@ func makeQuery(params map[string][]string) (string, int) {
 		Confirmed, Death, Recovered, Active
 		FROM DailyReports
 	`
+	status := 0
+	if len(params) == 0 {
+		return query, status
+	}
 
-	i := 0
+	whereCounter := 0
 	for param, value := range params {
 		param = strings.ToLower(param)
 
@@ -180,26 +184,24 @@ func makeQuery(params map[string][]string) (string, int) {
 
 		// Time interval
 		op := "="
-		if param == "from" {
+		if param == "from" || param == "to" {
+			if param == "from" {
+				op = ">="
+			} else {
+				op = "<="
+			}
 			param = "date"
-			op = ">="
-		}
-		if param == "to" {
-			param = "date"
-			op = "<="
 		}
 
 		value := strings.Split(value[0], ",")
 
-		for j, v := range value {
+		for i, v := range value {
 			// Format string for SQL
 			stringParams := map[string]string{
 				"admin2":   fmt.Sprintf(`'%s'`, v),
 				"address1": fmt.Sprintf(`'%s'`, v),
 				"address2": fmt.Sprintf(`'%s'`, v),
 				"date":     fmt.Sprintf(`'%s'`, v),
-				"from":     fmt.Sprintf(`'%s'`, v),
-				"to":       fmt.Sprintf(`'%s'`, v),
 			}
 			_, ok := stringParams[param]
 			if ok {
@@ -217,20 +219,20 @@ func makeQuery(params map[string][]string) (string, int) {
 			}
 
 			// Format first param and after
-			if i == 0 {
-				query += "WHERE " + param + op + value[j]
-				i++
+			if whereCounter == 0 {
+				query += "WHERE " + param + op + value[i]
+				whereCounter++
 			} else {
-				if j != 0 {
-					query += " OR " + param + op + value[j]
+				if i != 0 {
+					query += " OR " + param + op + value[i]
 				} else {
-					query += " AND " + param + op + value[j]
+					query += " AND " + param + op + value[i]
 				}
 
 			}
 		}
 	}
-	return query, 0
+	return query, status
 }
 
 func nullStringHandler(dr *DailyReports, ns map[string]*sql.NullString) {
