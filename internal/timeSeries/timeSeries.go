@@ -52,26 +52,24 @@ func Routes() chi.Router {
 func List(w http.ResponseWriter, r *http.Request) {
 	query, dates, death, recovered, status := makeQuery(r.URL.Query())
 	if status == 400 {
-		w.WriteHeader(400)
-		if _, err := w.Write([]byte("Error 400: Invalid Input")); err != nil {
-			log.Fatal(err)
-		}
+		utils.HandleErr(w, 400)
 		return
 	}
 
 	typeStr := getType(death, recovered)
 
 	stmt, err := db.Db.Prepare(query)
-
 	if err != nil {
-		log.Fatal(err)
+		utils.HandleErr(w, 500)
+		return
 	}
 
 	defer stmt.Close()
 
 	row, err := stmt.Query()
 	if err != nil {
-		log.Fatal(err)
+		utils.HandleErr(w, 500)
+		return
 	}
 	defer row.Close()
 
@@ -88,7 +86,8 @@ func List(w http.ResponseWriter, r *http.Request) {
 		temp["address2"] = &sql.NullString{}
 		err := row.Scan(temp["id"], temp["admin2"], temp["address1"], temp["address2"])
 		if err != nil {
-			log.Fatal(err)
+			utils.HandleErr(w, 500)
+			return
 		}
 		nullHandler(&ts, temp)
 
@@ -113,14 +112,16 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 		stmt, err := db.Db.Prepare(query)
 		if err != nil {
-			log.Fatal(err)
+			utils.HandleErr(w, 500)
+			return
 		}
 
 		defer stmt.Close()
 
 		rows, err := stmt.Query()
 		if err != nil {
-			log.Fatal(err)
+			utils.HandleErr(w, 500)
+			return
 		}
 
 		for rows.Next() {
@@ -135,7 +136,8 @@ func List(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if err != nil {
-				log.Fatal(err)
+				utils.HandleErr(w, 500)
+				return
 			}
 
 			if typeStr == "Confirmed" {
@@ -178,18 +180,21 @@ func List(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err := writer.WriteAll(csvArr); err != nil {
-			log.Fatal(err)
+			utils.HandleErr(w, 500)
+			return
 		}
 
 		if _, err := w.Write(b.Bytes()); err != nil {
-			log.Fatal(err)
+			utils.HandleErr(w, 500)
+			return
 		}
 
 	} else {
 		// Writing response in JSON
 		w.Header().Set("Content-Type", "application/json")
 		if err = json.NewEncoder(w).Encode(tsArr); err != nil {
-			log.Fatal(err)
+			utils.HandleErr(w, 500)
+			return
 		}
 	}
 

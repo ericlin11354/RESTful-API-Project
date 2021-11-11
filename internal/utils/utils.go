@@ -2,6 +2,9 @@ package utils
 
 import (
 	"errors"
+	"fmt"
+	"log"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -78,4 +81,12 @@ func HasDupe(index int, arr []string) bool {
 	}
 
 	return false
+}
+
+func HandleErr(w http.ResponseWriter, code int) {
+	w.WriteHeader(code)
+	response := fmt.Sprintf("Error status %d", code)
+	if _, err := w.Write([]byte(response)); err != nil {
+		log.Fatal(err)
+	}
 }

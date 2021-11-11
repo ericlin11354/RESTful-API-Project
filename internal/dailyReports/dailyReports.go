@@ -42,97 +42,15 @@ func Routes() chi.Router {
 	return r
 }
 
-func nullStringHandler(dr *DailyReports, values map[string]*sql.NullString) {
-	dr.ID = values["id"].String
-	if values["admin2"].Valid {
-		dr.Admin2 = values["admin2"].String
-	}
-	if values["address1"].Valid {
-		dr.Address1 = values["address1"].String
-	}
-	if values["address2"].Valid {
-		dr.Address2 = values["address2"].String
-	}
-}
-
-func nullIntHandler(dr *DailyReports, values map[string]*sql.NullInt64) {
-	if values["Confirmed"].Valid {
-		dr.Confirmed = int(values["Confirmed"].Int64)
-	}
-	if values["Death"].Valid {
-		dr.Death = int(values["Death"].Int64)
-	}
-	if values["Recovered"].Valid {
-		dr.Recovered = int(values["Recovered"].Int64)
-	}
-	if values["Active"].Valid {
-		dr.Active = int(values["Active"].Int64)
-	}
-}
-
 func List(w http.ResponseWriter, r *http.Request) {
-	params := r.URL.Query()
-
-	query := `
-		SELECT ID, Date, Admin2, Address1, Address2,
-		Confirmed, Death, Recovered, Active
-		FROM DailyReports
-	`
-
-	i := 0
-	for param, value := range params {
-		param = strings.ToLower(param)
-
-		var valid bool
-		if param, valid = utils.ParamValidate(param); !valid {
-			w.WriteHeader(400)
-			if _, err := w.Write([]byte("Error 400: Invalid Input")); err != nil {
-				log.Fatal(err)
-			}
-			return
+	query, status := makeQuery(r.URL.Query())
+	if status != 0 {
+		w.WriteHeader(400)
+		_, err := w.Write([]byte("Error 400: Invalid input"))
+		if err != nil {
+			log.Fatal(err)
 		}
-
-		// Time interval
-		op := "="
-		if param == "from" {
-			param = "date"
-			op = ">="
-		}
-		if param == "to" {
-			param = "date"
-			op = "<="
-		}
-
-		value := strings.Split(value[0], ",")
-
-		for j, v := range value {
-			// Format string for SQL
-			stringParams := map[string]string{
-				"admin2":   fmt.Sprintf(`'%s'`, v),
-				"address1": fmt.Sprintf(`'%s'`, v),
-				"address2": fmt.Sprintf(`'%s'`, v),
-				"date":     fmt.Sprintf(`'%s'`, v),
-				"from":     fmt.Sprintf(`'%s'`, v),
-				"to":       fmt.Sprintf(`'%s'`, v),
-			}
-			_, ok := stringParams[param]
-			if ok {
-				value[j] = stringParams[param]
-			}
-
-			// Format first param and after
-			if i == 0 {
-				query += "WHERE " + param + op + value[j]
-				i++
-			} else {
-				if j != 0 {
-					query += " OR " + param + op + value[j]
-				} else {
-					query += " AND " + param + op + value[j]
-				}
-
-			}
-		}
+		return
 	}
 	stmt, err := db.Db.Prepare(query)
 
@@ -237,5 +155,105 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := w.Write([]byte(body)); err != nil {
 		log.Fatal(err)
+	}
+}
+
+// Helper functions
+func makeQuery(params map[string][]string) (string, int) {
+	query := `
+		SELECT ID, Date, Admin2, Address1, Address2,
+		Confirmed, Death, Recovered, Active
+		FROM DailyReports
+	`
+
+	i := 0
+	for param, value := range params {
+		param = strings.ToLower(param)
+
+		var valid bool
+		if param, valid = utils.ParamValidate(param); !valid {
+			return "", 400
+		}
+
+		// Time interval
+		op := "="
+		if param == "from" {
+			param = "date"
+			op = ">="
+		}
+		if param == "to" {
+			param = "date"
+			op = "<="
+		}
+
+		value := strings.Split(value[0], ",")
+
+		for j, v := range value {
+			// Format string for SQL
+			stringParams := map[string]string{
+				"admin2":   fmt.Sprintf(`'%s'`, v),
+				"address1": fmt.Sprintf(`'%s'`, v),
+				"address2": fmt.Sprintf(`'%s'`, v),
+				"date":     fmt.Sprintf(`'%s'`, v),
+				"from":     fmt.Sprintf(`'%s'`, v),
+				"to":       fmt.Sprintf(`'%s'`, v),
+			}
+			_, ok := stringParams[param]
+			if ok {
+				if param == "date" {
+					// mm/dd/yy
+					temp, err := utils.ParseDate(v)
+					if err != nil {
+						return "", 400
+					}
+					value[i] = temp.Format("2006/1/2")
+					value[i] = fmt.Sprintf(`"%s"`, value[i])
+				} else {
+					value[i] = stringParams[param]
+				}
+			}
+
+			// Format first param and after
+			if i == 0 {
+				query += "WHERE " + param + op + value[j]
+				i++
+			} else {
+				if j != 0 {
+					query += " OR " + param + op + value[j]
+				} else {
+					query += " AND " + param + op + value[j]
+				}
+
+			}
+		}
+	}
+	return query, 0
+}
+
+func nullStringHandler(dr *DailyReports, values map[string]*sql.NullString) {
+	dr.ID = values["id"].String
+	if values["admin2"].Valid {
+		dr.Admin2 = values["admin2"].String
+	}
+	if values["address1"].Valid {
+		dr.Address1 = values["address1"].String
+	}
+	if values["address2"].Valid {
+		dr.Address2 = values["address2"].String
+	}
+}
+
+func nullIntHandler(dr *DailyReports, values map[string]*sql.NullInt64) {
+	if values["Confirmed"].Valid {
+		dr.Confirmed = int(values["Confirmed"].Int64)
+	}
+	if values["Death"].Valid {
+		dr.Death = int(values["Death"].Int64)
+	}
+	if values["Recovered"].Valid {
+		dr.Recovered = int(values["Recovered"].Int64)
+	}
+	if values["Active"].Valid {
+		dr.Active = int(values["Active"].Int64)
 	}
 }
