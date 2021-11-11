@@ -34,6 +34,7 @@ func InitDb(testing ...bool) {
 		dbName    = os.Getenv(env[4]) // e.g. 'my-database'
 	)
 	dbURI := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", dbUser, dbPwd, dbTCPHost, dbPort, dbName)
+	fmt.Println(dbURI)
 
 	// fmt.Println("DB LINK:", dbURI)
 

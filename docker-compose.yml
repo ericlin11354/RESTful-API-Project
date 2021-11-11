@@ -1,0 +1,12 @@
+version: "3"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: a2-api
+    restart: always
+    ports:
+      - "${PORT}:${PORT}"
+    entrypoint: ["bash", "-c", "./a2"]
