@@ -13,7 +13,7 @@ before_script:
   # Creating .env
   - cat $ENV > .env
   - cat $ENV > ./internal/timeSeries/.env
-  - cat $ENV > ./internal/dailyReports.env
+  - cat $ENV > ./internal/dailyReports/.env
 
 stages:
   - build
