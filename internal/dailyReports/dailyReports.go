@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -45,24 +46,20 @@ func Routes() chi.Router {
 func List(w http.ResponseWriter, r *http.Request) {
 	query, status := makeQuery(r.URL.Query())
 	if status != 0 {
-		w.WriteHeader(400)
-		_, err := w.Write([]byte("Error 400: Invalid input"))
-		if err != nil {
-			log.Fatal(err)
-		}
+		utils.HandleErr(w, 400, errors.New("Input error"))
 		return
 	}
 	stmt, err := db.Db.Prepare(query)
 
 	if err != nil {
-		log.Fatal(err)
+		utils.HandleErr(w, 500, err)
 	}
 
 	defer stmt.Close()
 
 	row, err := stmt.Query()
 	if err != nil {
-		log.Fatal(err)
+		utils.HandleErr(w, 500, err)
 	}
 	defer row.Close()
 
@@ -71,29 +68,35 @@ func List(w http.ResponseWriter, r *http.Request) {
 		dr := DailyReports{}
 
 		// Handling null values
-		nullStrings := map[string]*sql.NullString{}
-		nullStrings["id"] = &sql.NullString{}
-		nullStrings["admin2"] = &sql.NullString{}
-		nullStrings["address1"] = &sql.NullString{}
-		nullStrings["address2"] = &sql.NullString{}
-		nullInts := map[string]*sql.NullInt64{}
-		nullInts["Confirmed"] = &sql.NullInt64{}
-		nullInts["Death"] = &sql.NullInt64{}
-		nullInts["Recovered"] = &sql.NullInt64{}
-		nullInts["Active"] = &sql.NullInt64{}
-		err := row.Scan(nullStrings["id"], &dr.Date, nullStrings["admin2"],
-			nullStrings["address1"], nullStrings["address2"],
-			nullInts["Confirmed"], nullInts["Death"],
-			nullInts["Recovered"], nullInts["Active"],
+		ns := map[string]*sql.NullString{
+			"admin2":   {},
+			"address1": {},
+			"address2": {},
+		}
+
+		ni := map[string]*sql.NullInt64{
+			"confirmed": {},
+			"death":     {},
+			"recovered": {},
+			"active":    {},
+		}
+
+		err := row.Scan(&dr.Date, &dr.Date,
+			ns["admin2"], ns["address1"], ns["address2"],
+			ni["confirmed"], ni["death"],
+			ni["recovered"], ni["active"],
 		)
 		if err != nil {
-			log.Fatal(err)
+			utils.HandleErr(w, 500, err)
 		}
-		nullStringHandler(&dr, nullStrings)
-		nullIntHandler(&dr, nullInts)
+
+		nullStringHandler(&dr, ns)
+		nullIntHandler(&dr, ni)
 
 		drArr = append(drArr, dr)
 	}
+
+	// Checking for return response type
 	if r.Header.Get("Accept") == "text/csv" {
 		w.Header().Set("Content-Type", "text/csv")
 
@@ -116,15 +119,15 @@ func List(w http.ResponseWriter, r *http.Request) {
 			csvArr = append(csvArr, row)
 		}
 		if err := writer.WriteAll(csvArr); err != nil {
-			log.Fatal(err)
+			utils.HandleErr(w, 500, err)
 		}
 
 		if _, err := w.Write(b.Bytes()); err != nil {
-			log.Fatal(err)
+			utils.HandleErr(w, 500, err)
 		}
 	} else {
 		if err := json.NewEncoder(w).Encode(drArr); err != nil {
-			log.Fatal(err)
+			utils.HandleErr(w, 500, err)
 		}
 	}
 
@@ -230,30 +233,29 @@ func makeQuery(params map[string][]string) (string, int) {
 	return query, 0
 }
 
-func nullStringHandler(dr *DailyReports, values map[string]*sql.NullString) {
-	dr.ID = values["id"].String
-	if values["admin2"].Valid {
-		dr.Admin2 = values["admin2"].String
+func nullStringHandler(dr *DailyReports, ns map[string]*sql.NullString) {
+	if ns["admin2"].Valid {
+		dr.Admin2 = ns["admin2"].String
 	}
-	if values["address1"].Valid {
-		dr.Address1 = values["address1"].String
+	if ns["address1"].Valid {
+		dr.Address1 = ns["address1"].String
 	}
-	if values["address2"].Valid {
-		dr.Address2 = values["address2"].String
+	if ns["address2"].Valid {
+		dr.Address2 = ns["address2"].String
 	}
 }
 
-func nullIntHandler(dr *DailyReports, values map[string]*sql.NullInt64) {
-	if values["Confirmed"].Valid {
-		dr.Confirmed = int(values["Confirmed"].Int64)
+func nullIntHandler(dr *DailyReports, ni map[string]*sql.NullInt64) {
+	if ni["confirmed"].Valid {
+		dr.Confirmed = int(ni["confirmed"].Int64)
 	}
-	if values["Death"].Valid {
-		dr.Death = int(values["Death"].Int64)
+	if ni["death"].Valid {
+		dr.Death = int(ni["death"].Int64)
 	}
-	if values["Recovered"].Valid {
-		dr.Recovered = int(values["Recovered"].Int64)
+	if ni["recovered"].Valid {
+		dr.Recovered = int(ni["recovered"].Int64)
 	}
-	if values["Active"].Valid {
-		dr.Active = int(values["Active"].Int64)
+	if ni["active"].Valid {
+		dr.Active = int(ni["active"].Int64)
 	}
 }

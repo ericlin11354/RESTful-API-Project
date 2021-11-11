@@ -1,6 +1,10 @@
 package utils
 
 import (
+	"errors"
+	"fmt"
+	"io"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -154,5 +158,25 @@ func TestHasDupe(t *testing.T) {
 	arr = []string{"a", "b", "c", "a"}
 	if !HasDupe(i, arr) {
 		t.Fatalf("Test failed: there is a dupe")
+	}
+}
+
+func TestHandleErr(t *testing.T) {
+	code := 400
+	w := httptest.NewRecorder()
+	err := errors.New("Input error")
+	HandleErr(w, code, err)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+
+	expect := fmt.Sprintf("Error status %d", code)
+
+	if string(body) != expect {
+		t.Fatalf("Test failed: expect %s, got %s", expect, string(body))
+	}
+
+	if resp.StatusCode != code {
+		t.Fatalf("Test failed: expect %d, got %d", code, resp.StatusCode)
 	}
 }

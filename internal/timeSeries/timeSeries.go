@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -52,7 +53,7 @@ func Routes() chi.Router {
 func List(w http.ResponseWriter, r *http.Request) {
 	query, dates, death, recovered, status := makeQuery(r.URL.Query())
 	if status == 400 {
-		utils.HandleErr(w, 400, err)
+		utils.HandleErr(w, 400, errors.New("Invalid input"))
 		return
 	}
 

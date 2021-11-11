@@ -516,7 +516,7 @@ func TestListBadRequests(t *testing.T) {
 	if resp.StatusCode != expectedCode {
 		t.Fatalf("Test failed: expected %d, got %d", expectedCode, resp.StatusCode)
 	}
-	expected := "Error 400: Invalid Input"
+	expected := "Error status 400"
 	if string(body) != expected {
 		t.Fatalf("Test failed: expected %s, got %s", expected, string(body))
 	}
