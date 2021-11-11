@@ -447,6 +447,11 @@ func TestListDefault(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatalf("Test failed: expected code 200, got %d", resp.StatusCode)
 	}
+
+	expected := "application/json"
+	if result := resp.Header.Get("Content-Type"); result != expected {
+		t.Fatalf("Test failed: expected %s, got %s", expected, result)
+	}
 }
 
 func TestListWithParams(t *testing.T) {
@@ -537,6 +542,12 @@ func TestListCSVRequests(t *testing.T) {
 		t.Fatalf("Test failed: expected %s, got %s", expected, line[0])
 	}
 
+	expected = "text/csv"
+	if result := resp.Header.Get("Content-Type"); result != expected {
+		t.Fatalf("Test failed: expected %s, got %s", expected, result)
+	}
+
+	// Test death
 	r = httptest.NewRequest("GET", "http://example.com/foo?death", nil)
 	r.Header.Set("Accept", "text/csv")
 	w = httptest.NewRecorder()

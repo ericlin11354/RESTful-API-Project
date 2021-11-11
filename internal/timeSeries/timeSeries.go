@@ -102,12 +102,14 @@ func List(w http.ResponseWriter, r *http.Request) {
 		} else {
 			ts.Recovered = map[time.Time]int{}
 		}
+
 		tsArr = append(tsArr, ts)
 	}
 
 	// Filling maps
 	columns := fmt.Sprintf("Date, %s", typeStr)
 	for _, ts := range tsArr {
+		// Querying from db
 		query := fmt.Sprintf(`
 			SELECT %s FROM TimeSeries%s
 			WHERE ID = %s %s
@@ -120,35 +122,30 @@ func List(w http.ResponseWriter, r *http.Request) {
 		}
 
 		defer stmt.Close()
-
 		rows, err := stmt.Query()
 		if err != nil {
 			utils.HandleErr(w, 500, err)
 			return
 		}
 
+		// Reading each row
 		for rows.Next() {
 			tsd := TimeSeriesDate{}
 			var err error
 			if typeStr == "Confirmed" {
 				err = rows.Scan(&tsd.Date, &tsd.Confirmed)
+				ts.Confirmed[tsd.Date] = tsd.Confirmed
 			} else if typeStr == "Death" {
 				err = rows.Scan(&tsd.Date, &tsd.Death)
+				ts.Death[tsd.Date] = tsd.Death
 			} else {
 				err = rows.Scan(&tsd.Date, &tsd.Recovered)
+				ts.Recovered[tsd.Date] = tsd.Recovered
 			}
 
 			if err != nil {
 				utils.HandleErr(w, 500, err)
 				return
-			}
-
-			if typeStr == "Confirmed" {
-				ts.Confirmed[tsd.Date] = tsd.Confirmed
-			} else if typeStr == "Death" {
-				ts.Death[tsd.Date] = tsd.Death
-			} else {
-				ts.Recovered[tsd.Date] = tsd.Recovered
 			}
 		}
 	}
@@ -172,6 +169,8 @@ func List(w http.ResponseWriter, r *http.Request) {
 			} else {
 				data = ts.Recovered
 			}
+
+			// Create a row
 			for date := range data {
 				row := []string{
 					ts.ID,
@@ -182,16 +181,16 @@ func List(w http.ResponseWriter, r *http.Request) {
 				csvArr = append(csvArr, row)
 			}
 		}
+		// Write to buffer
 		if err := writer.WriteAll(csvArr); err != nil {
 			utils.HandleErr(w, 500, err)
 			return
 		}
-
+		// Write to response
 		if _, err := w.Write(b.Bytes()); err != nil {
 			utils.HandleErr(w, 500, err)
 			return
 		}
-
 	} else {
 		// Writing response in JSON
 		w.Header().Set("Content-Type", "application/json")
@@ -201,6 +200,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Successfully written the data
 	w.WriteHeader(200)
 }
 

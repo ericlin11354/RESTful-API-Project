@@ -2,6 +2,7 @@ package dailyReports
 
 import (
 	"database/sql"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -90,4 +91,9 @@ func TestNullIntHandler(t *testing.T) {
 			expect1, expect2, expect3, expect4,
 			dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
 	}
+}
+
+func TestMakeQuery(t *testing.T) {
+	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
+	makeQuery(r.URL.Query())
 }
