@@ -80,12 +80,14 @@ func List(w http.ResponseWriter, r *http.Request) {
 		ts := TimeSeries{}
 
 		// Handling null values
-		temp := map[string]*sql.NullString{}
-		temp["id"] = &sql.NullString{}
-		temp["admin2"] = &sql.NullString{}
-		temp["address1"] = &sql.NullString{}
-		temp["address2"] = &sql.NullString{}
-		err := row.Scan(temp["id"], temp["admin2"], temp["address1"], temp["address2"])
+		temp := map[string]*sql.NullString{
+			"id":       {},
+			"admin2":   {},
+			"address1": {},
+			"address2": {},
+		}
+		err := row.Scan(temp["id"], temp["admin2"],
+			temp["address1"], temp["address2"])
 		if err != nil {
 			utils.HandleErr(w, 500, err)
 			return
