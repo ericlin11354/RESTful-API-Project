@@ -2,6 +2,7 @@ package timeSeries
 
 import (
 	"database/sql"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	"github.com/joho/godotenv"
 
 	db "gitlab.com/csc301-assignments/a2/internal/db"
+	"gitlab.com/csc301-assignments/a2/internal/utils"
 )
 
 func ConnectToDb() {
@@ -24,7 +26,8 @@ func ConnectToDb() {
 	r := chi.NewRouter()
 
 	// Initizalize database and migrate
-	db.InitDb()
+	testing := true
+	db.InitDb(testing)
 
 	// Creating endpoints
 	r.Mount("/time_series", Routes())
@@ -57,7 +60,6 @@ func TestGetType(t *testing.T) {
 	if expect != result {
 		t.Fatalf("Test failed: expected %s, got %s", expect, result)
 	}
-
 }
 
 func TestNullHandler(t *testing.T) {
@@ -251,99 +253,62 @@ func TestWriteRow(t *testing.T) {
 	}
 }
 
-// resp := w.Result()
-// body, _ := io.ReadAll(resp.Body)
-
-// fmt.Println(resp.StatusCode)
-// fmt.Println(resp.Header.Get("Content-Type"))
-// fmt.Println(string(body))
-
-// Output:
-// 200
-// text/html; charset=utf-8
-// <html><body>Hello World!</body></html>
 func TestMakeQuery(t *testing.T) {
 	// Test no params
 	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
 
-	query, death, recovered, status := makeQuery(r.URL.Query())
+	query, dates, death, recovered, status := makeQuery(r.URL.Query())
 
 	query = strings.TrimSpace(query)
-	expected_query := strings.TrimSpace(`
+	expectedQuery := strings.TrimSpace(`
 		SELECT DISTINCT TimeSeries.ID, Admin2, Address1, Address2
 		FROM TimeSeries JOIN TimeSeriesConfirmed ON
 		TimeSeries.ID = TimeSeriesConfirmed.ID
 		JOIN TimeSeriesDeath ON TimeSeries.ID = TimeSeriesDeath.ID
 		JOIN TimeSeriesRecovered ON TimeSeries.ID = TimeSeriesRecovered.ID
 	`)
-	if expected_query != query {
-		t.Fatalf("Test failed: expected %s, got %s", expected_query, query)
+	if expectedQuery != query {
+		t.Fatalf("Test failed: expected %s, got %s", expectedQuery, query)
+	}
+
+	expectedDates := ""
+	if dates != expectedDates {
+		t.Fatalf("Test failed: expected %s, got %s", expectedDates, dates)
 	}
 
 	if death || recovered {
 		t.Fatalf("Test failed: expected both false, got %v and %v", death, recovered)
 	}
 
-	if status != 0 {
-		t.Fatalf("Test failed: expected 0, got %d", status)
+	expectedStatus := 0
+	if status != expectedStatus {
+		t.Fatalf("Test failed: expected %d, got %d", expectedStatus, status)
 	}
 
 	// Test invalid params
 	r = httptest.NewRequest("GET", "http://example.com/foo?asd=asd", nil)
-
-	query, death, recovered, status = makeQuery(r.URL.Query())
-	expected_query = ""
-	if expected_query != query {
-		t.Fatalf("Test failed: expected %s, got %s", expected_query, query)
-	}
-
-	if death || recovered {
-		t.Fatalf("Test failed: expected both false, got %v and %v", death, recovered)
-	}
-
-	if status != 400 {
-		t.Fatalf("Test failed: expected 400, got %d", status)
+	_, _, _, _, status = makeQuery(r.URL.Query())
+	expectedStatus = 400
+	if status != expectedStatus {
+		t.Fatalf("Test failed: expected %d, got %d", expectedStatus, status)
 	}
 
 	// Test both death and recovered
 	r = httptest.NewRequest("GET", "http://example.com/foo?death&recovered", nil)
-
-	query, death, recovered, status = makeQuery(r.URL.Query())
-	expected_query = ""
-	if expected_query != query {
-		t.Fatalf("Test failed: expected %s, got %s", expected_query, query)
-	}
-
-	if death || recovered {
-		t.Fatalf("Test failed: expected both false, got %v and %v", death, recovered)
-	}
-
-	if status != 400 {
-		t.Fatalf("Test failed: expected 400, got %d", status)
+	_, _, _, _, status = makeQuery(r.URL.Query())
+	expectedStatus = 400
+	if status != expectedStatus {
+		t.Fatalf("Test failed: expected %d, got %d", expectedStatus, status)
 	}
 
 	// Test death
 	r = httptest.NewRequest("GET", "http://example.com/foo?Death", nil)
 
-	query, death, recovered, status = makeQuery(r.URL.Query())
-	query = strings.TrimSpace(query)
-	expected_query = strings.TrimSpace(`
-		SELECT DISTINCT TimeSeries.ID, Admin2, Address1, Address2
-		FROM TimeSeries JOIN TimeSeriesConfirmed ON
-		TimeSeries.ID = TimeSeriesConfirmed.ID
-		JOIN TimeSeriesDeath ON TimeSeries.ID = TimeSeriesDeath.ID
-		JOIN TimeSeriesRecovered ON TimeSeries.ID = TimeSeriesRecovered.ID
-	`)
-	if expected_query != query {
-		t.Fatalf("Test failed: expected %s, got %s", expected_query, query)
-	}
-
+	_, _, death, recovered, _ = makeQuery(r.URL.Query())
+	expectedDeath, expectedRecovered := true, false
 	if !death || recovered {
-		t.Fatalf("Test failed: expected both true, got %v and %v", death, recovered)
-	}
-
-	if status != 0 {
-		t.Fatalf("Test failed: expected 0, got %d", status)
+		t.Fatalf("Test failed: expected %v and %v, got %v and %v",
+			expectedDeath, expectedRecovered, death, recovered)
 	}
 
 	// Test state and country params
@@ -352,7 +317,7 @@ func TestMakeQuery(t *testing.T) {
 		"http://example.com/foo?country=canada,us&state=ontario,ohio",
 		nil)
 
-	query, death, recovered, status = makeQuery(r.URL.Query())
+	query, _, _, _, _ = makeQuery(r.URL.Query())
 	query = strings.TrimSpace(query)
 
 	lines := strings.Split(query, "\n")
@@ -368,21 +333,13 @@ func TestMakeQuery(t *testing.T) {
 		t.Fatalf("Test failed: query does not contain %s", checker)
 	}
 
-	if death || recovered {
-		t.Fatalf("Test failed: expected both false, got %v and %v", death, recovered)
-	}
-
-	if status != 0 {
-		t.Fatalf("Test failed: expected 0, got %d", status)
-	}
-
 	// Test admin2, province, and region params
 	r = httptest.NewRequest(
 		"GET",
 		"http://example.com/foo?region=foo&province=bar&admin2=uwu",
 		nil)
 
-	query, death, recovered, status = makeQuery(r.URL.Query())
+	query, _, _, _, _ = makeQuery(r.URL.Query())
 	query = strings.TrimSpace(query)
 
 	lines = strings.Split(query, "\n")
@@ -403,63 +360,193 @@ func TestMakeQuery(t *testing.T) {
 		t.Fatalf("Test failed: query does not contain %s", checker)
 	}
 
-	if death || recovered {
-		t.Fatalf("Expected both false, got %v and %v", death, recovered)
-	}
-
-	if status != 0 {
-		t.Fatalf("Test failed: expected 0, got %d", status)
-	}
-
 	// Test date params
 	r = httptest.NewRequest(
 		"GET",
-		"http://example.com/foo?date=1/2/3&from=4/5/6&to=7/8/9",
+		"http://example.com/foo?date=1/2/30,4/5/60",
 		nil)
 
-	query, death, recovered, status = makeQuery(r.URL.Query())
-	query = strings.TrimSpace(query)
+	_, dates, _, _, _ = makeQuery(r.URL.Query())
 
-	lines = strings.Split(query, "\n")
-	lastline = strings.TrimSpace(lines[len(lines)-1])
+	checker = "date=\"2030/1/2\""
+	if !strings.Contains(dates, checker) {
+		t.Fatalf("Test failed: expect %s, does not have %s", dates, checker)
+	}
 
-	checker = "date='1/2/3'"
-	if !strings.Contains(lastline, checker) {
+	checker = "date=\"2060/4/5\""
+	if !strings.Contains(dates, checker) {
 		t.Fatalf("Test failed: query does not contain %s", checker)
 	}
 
-	checker = "date>='4/5/6'"
-	if !strings.Contains(lastline, checker) {
+	// Test from & to
+	r = httptest.NewRequest(
+		"GET",
+		"http://example.com/foo?from=1/2/30,4/5/60&to=1/2/30,4/5/60",
+		nil)
+
+	_, dates, _, _, _ = makeQuery(r.URL.Query())
+
+	checker = "date>=\"2030/1/2\""
+	if !strings.Contains(dates, checker) {
+		t.Fatalf("Test failed: expect %s, does not have %s", dates, checker)
+	}
+
+	checker = "date>=\"2060/4/5\""
+	if !strings.Contains(dates, checker) {
 		t.Fatalf("Test failed: query does not contain %s", checker)
 	}
 
-	checker = "date<='7/8/9'"
-	if !strings.Contains(lastline, checker) {
+	checker = "date<=\"2030/1/2\""
+	if !strings.Contains(dates, checker) {
+		t.Fatalf("Test failed: expect %s, does not have %s", dates, checker)
+	}
+
+	checker = "date<=\"2060/4/5\""
+	if !strings.Contains(dates, checker) {
 		t.Fatalf("Test failed: query does not contain %s", checker)
-	}
-
-	if death || recovered {
-		t.Fatalf("Expected both false, got %v and %v", death, recovered)
-	}
-
-	if status != 0 {
-		t.Fatalf("Test failed: expected 0, got %d", status)
 	}
 }
 
-func TestList(t *testing.T) {
+// resp := w.Result()
+// body, _ := io.ReadAll(resp.Body)
+
+// fmt.Println(resp.StatusCode)
+// fmt.Println(resp.Header.Get("Content-Type"))
+// fmt.Println(string(body))
+
+// Output:
+// 200
+// text/html; charset=utf-8
+// <html><body>Hello World!</body></html>
+func TestListDefault(t *testing.T) {
 	ConnectToDb()
-	r := httptest.NewRequest("GET", "http://example.com/foo?country=us&date=21/11/1&death", nil)
+	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w := httptest.NewRecorder()
 	List(w, r)
 
 	resp := w.Result()
 	body, _ := io.ReadAll(resp.Body)
 
-	t.Errorf("%s", string(body))
+	tsArr := []TimeSeries{}
+	err := json.Unmarshal(body, &tsArr)
+	if err != nil {
+		t.Errorf("Error during converting JSON: %v", err)
+	}
+
+	// Assuming there is already data in db
+	if len(tsArr) == 0 {
+		t.Fatalf("Test failed: empty response")
+	}
+
+	for _, ts := range tsArr {
+		if len(ts.Confirmed) == 0 {
+			t.Fatalf("Test failed: empty response")
+		}
+	}
 
 	if resp.StatusCode != 200 {
 		t.Fatalf("Test failed: expected code 200, got %d", resp.StatusCode)
 	}
+}
 
+func TestListWithParams(t *testing.T) {
+	ConnectToDb()
+	r := httptest.NewRequest("GET", "http://example.com/foo?country=us,canada&from=1/1/20", nil)
+	w := httptest.NewRecorder()
+	List(w, r)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+
+	tsArr := []TimeSeries{}
+	err := json.Unmarshal(body, &tsArr)
+	if err != nil {
+		t.Errorf("Error during converting JSON: %v", err)
+	}
+
+	expect1 := "US"
+	expect2 := "Canada"
+	date1, err := utils.ParseDate("11/1/21")
+	if err != nil {
+		t.Errorf("Error during parsing date: %v", err)
+	}
+	date2, err := utils.ParseDate("10/31/21")
+	if err != nil {
+		t.Errorf("Error during parsing date: %v", err)
+	}
+	val1 := 420
+	val2 := 343
+
+	for _, ts := range tsArr {
+		// the US
+		if ts.Address2 == expect1 {
+			if _, ok := ts.Confirmed[date1]; !ok {
+				t.Fatalf("Test failed: value not updated %v %v", date1, ts.Confirmed)
+			}
+			if ts.Confirmed[date1] != val1 {
+				t.Fatalf("Test failed: expect %d, got %d", val1, ts.Confirmed[date1])
+			}
+		} else if ts.Address2 == expect2 { // Canada
+			if _, ok := ts.Confirmed[date2]; !ok {
+				t.Fatalf("Test failed: value not updated %v %v", date2, ts.Confirmed)
+			}
+			if ts.Confirmed[date2] != val2 {
+				t.Fatalf("Test failed: expect %d, got %d", val2, ts.Confirmed[date2])
+			}
+		} else {
+			t.Fatalf("Test failed: expected %s or %s, got %s", expect1, expect2, ts.Address2)
+		}
+	}
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("Test failed: expected code 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestListBadRequests(t *testing.T) {
+	ConnectToDb()
+	r := httptest.NewRequest("GET", "http://example.com/foo?asdfjk", nil)
+	w := httptest.NewRecorder()
+	List(w, r)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+
+	expectedCode := 400
+	if resp.StatusCode != expectedCode {
+		t.Fatalf("Test failed: expected %d, got %d", expectedCode, resp.StatusCode)
+	}
+	expected := "Error 400: Invalid Input"
+	if string(body) != expected {
+		t.Fatalf("Test failed: expected %s, got %s", expected, string(body))
+	}
+}
+
+func TestListCSVRequests(t *testing.T) {
+	ConnectToDb()
+	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
+	r.Header.Set("Accept", "text/csv")
+	w := httptest.NewRecorder()
+	List(w, r)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+	line := strings.Split(string(body), "\n")
+	expected := "ID,Address,Date,Confirmed"
+	if line[0] != expected {
+		t.Fatalf("Test failed: expected %s, got %s", expected, line[0])
+	}
+
+	r = httptest.NewRequest("GET", "http://example.com/foo?death", nil)
+	r.Header.Set("Accept", "text/csv")
+	w = httptest.NewRecorder()
+	List(w, r)
+
+	resp = w.Result()
+	body, _ = io.ReadAll(resp.Body)
+	line = strings.Split(string(body), "\n")
+	expected = "ID,Address,Date,Death"
+	if line[0] != expected {
+		t.Fatalf("Test failed: expected %s, got %s", expected, line[0])
+	}
 }

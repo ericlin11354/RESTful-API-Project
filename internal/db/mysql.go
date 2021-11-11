@@ -14,18 +14,24 @@ import (
 
 var Db *sql.DB
 
-func InitDb() {
+func InitDb(testing ...bool) {
+	env := []string{"DB_USER", "DB_PASS", "DB_HOST", "DB_PORT", "DB_NAME"}
+	if len(testing) > 0 {
+		env = []string{"DB_TEST_USER", "DB_TEST_PASS",
+			"DB_TEST_HOST", "DB_TEST_PORT", "DB_TEST_NAME"}
+	}
+
 	if err := godotenv.Load(); err != nil {
 		log.Fatal(err)
 	}
 
 	// Reading variables from .env
 	var (
-		dbUser    = os.Getenv("DB_USER") // e.g. 'my-db-user'
-		dbPwd     = os.Getenv("DB_PASS") // e.g. 'my-db-password'
-		dbTCPHost = os.Getenv("DB_HOST") // e.g. '127.0.0.1' ('172.17.0.1' if deployed to GAE Flex)
-		dbPort    = os.Getenv("DB_PORT") // e.g. '3306'
-		dbName    = os.Getenv("DB_NAME") // e.g. 'my-database'
+		dbUser    = os.Getenv(env[0]) // e.g. 'my-db-user'
+		dbPwd     = os.Getenv(env[1]) // e.g. 'my-db-password'
+		dbTCPHost = os.Getenv(env[2]) // e.g. '127.0.0.1' ('172.17.0.1' if deployed to GAE Flex)
+		dbPort    = os.Getenv(env[3]) // e.g. '3306'
+		dbName    = os.Getenv(env[4]) // e.g. 'my-database'
 	)
 	dbURI := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", dbUser, dbPwd, dbTCPHost, dbPort, dbName)
 

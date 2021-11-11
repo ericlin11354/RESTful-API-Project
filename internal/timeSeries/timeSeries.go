@@ -251,7 +251,10 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			allKeys[result[i]] = true
 		} else { // duplicate found
 			w.WriteHeader(400)
-			w.Write([]byte("Error 400: Don't have files with duplicate dates"))
+			_, err := w.Write([]byte("Error 400: the file has duplicate dates"))
+			if err != nil {
+				log.Fatal(err)
+			}
 			return
 		}
 	}
@@ -423,12 +426,6 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-}
-
-func Update(w http.ResponseWriter, r *http.Request) {
-	id := r.Context().Value("id").(string)
-	body := "" + id
-	fmt.Println(body)
 }
 
 // Helper functions
