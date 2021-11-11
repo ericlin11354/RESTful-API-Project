@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -135,30 +133,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 }
 
 func Create(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/csv")
-	reader := csv.NewReader(r.Body)
 
-	body := ""
-	for {
-		result, err := reader.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		for i := range result {
-			body += result[i] + " "
-		}
-		body += "\n"
-
-		fmt.Println(result)
-	}
-
-	if _, err := w.Write([]byte(body)); err != nil {
-		log.Fatal(err)
-	}
 }
 
 // Helper functions
