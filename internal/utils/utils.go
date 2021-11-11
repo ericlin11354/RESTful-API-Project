@@ -40,6 +40,9 @@ func ParseDate(date string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
+	if year < 0 || year > 9999 {
+		return time.Time{}, errors.New("Year Syntax Error")
+	}
 	month, err := strconv.Atoi(temp[0])
 	if err != nil {
 		return time.Time{}, err
@@ -55,4 +58,26 @@ func ParseDate(date string) (time.Time, error) {
 		return time.Time{}, errors.New("Day Syntax Error")
 	}
 	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC), nil
+}
+
+/**
+Helper function for Create().
+Iterate from index until end of arr, checking for duplicate string
+Return true if duplicate exists. Otherwise, return false
+
+*/
+func HasDupe(index int, arr []string) bool {
+	// Check for duplicate dates
+	allKeys := make(map[string]bool)
+	//fmt.Println(len(result))
+	for i := index; i < len(arr); i++ {
+		//fmt.Println(allKeys)
+		if value := allKeys[arr[i]]; !value {
+			allKeys[arr[i]] = true
+		} else { // duplicate found
+			return true
+		}
+	}
+
+	return false
 }

@@ -8,6 +8,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -216,44 +217,20 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	var Admin2Index int = -1
 	var Address1Index int
 	var Address2Index int
-	var beginDateIndex int
 
-	// get beginDate and endDate
-	var beginDate time.Time
-	var endDate time.Time
-	beginFlag := false // true -> beginDate found; false Otherwise
-	endFlag := false
-	// Broken
-	for i := range result {
-		if !beginFlag && len(strings.Split(result[i], "/")) == 3 {
-			beginDate, err = utils.ParseDate(result[i]) // parses Date string -> time.Time
-			if err != nil {
-				log.Fatal(err)
-			}
-			beginDateIndex = i
-			beginFlag = true
-		}
-		if !endFlag && len(strings.Split(result[len(result)-i-1], "/")) == 3 { // searches backwards in array
-			endDate, err = utils.ParseDate(result[len(result)-i-1])
-			if err != nil {
-				log.Fatal(err)
-			}
-			endFlag = true
-		}
+	// allows for direct access to dates
+	beginDate, endDate, beginDateIndex, err := getDates(result)
+	if err != nil {
+		log.Fatal(err)
+		w.WriteHeader(500)
+		w.Write([]byte("Error 500: ParseDate() failed"))
 	}
 
 	// Check for duplicate dates
-	allKeys := make(map[string]bool)
-	//fmt.Println(len(result))
-	for i := beginDateIndex; i < len(result); i++ {
-		//fmt.Println(allKeys)
-		if value := allKeys[result[i]]; !value {
-			allKeys[result[i]] = true
-		} else { // duplicate found
-			w.WriteHeader(400)
-			w.Write([]byte("Error 400: Don't have files with duplicate dates"))
-			return
-		}
+	if utils.HasDupe(beginDateIndex, result) {
+		w.WriteHeader(400)
+		w.Write([]byte("Error 400: Don't have files with duplicate dates"))
+		return
 	}
 
 	for i := range result {
@@ -268,6 +245,9 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 	for {
 		result, err = reader.Read()
+		if err == io.EOF {
+			break
+		}
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -277,152 +257,184 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		ts.Address1 = result[Address1Index]
 		ts.Address2 = result[Address2Index]
 
-		// check if address exists
-		var (
-			ID            int64
-			Address1      string
-			Address2      string
-			AddressExists bool
-		)
-		rows, err := db.Db.Query(`
-			SELECT ID, Address1, Address2 FROM TimeSeries
-			`)
+		id, err := injectTimeSeries(Admin2Index, ts)
 		if err != nil {
 			log.Fatal(err)
-		}
-		defer rows.Close()
-		for rows.Next() {
-			err = rows.Scan(&ID, &Address1, &Address2)
-			if err != nil {
-				log.Fatal(err)
-			}
-			if Address1 == ts.Address1 && Address2 == ts.Address2 {
-				AddressExists = true
-				fmt.Println("Found existing address")
-			}
+			w.WriteHeader(500)
+			w.Write([]byte("Error 500: injectTimeSeries() failed"))
 		}
 
-		var (
-			id    int64
-			query string
-		)
-		if AddressExists { // If an address exists, we simply use its id
-			id = ID
-		} else { // Else, inject a new address
-			if Admin2Index >= 0 {
-				query = "INSERT INTO TimeSeries(Admin2, Address1, Address2) VALUES(?,?,?)"
-			} else {
-				query = "INSERT INTO TimeSeries(Address1, Address2) VALUES(?,?)"
-			}
-			stmt, err := db.Db.Prepare(query)
-			if err != nil {
-				log.Fatal(err)
-			}
-			var res sql.Result
-			if Admin2Index >= 0 {
-				res, err = stmt.Exec(ts.Admin2, ts.Address1, ts.Address2)
-			} else {
-				res, err = stmt.Exec(ts.Address1, ts.Address2)
-			}
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			id, err = res.LastInsertId()
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-
-		query = fmt.Sprintf("INSERT INTO TimeSeries%s VALUES(?,?,?)", filetype)
-		stmt, err := db.Db.Prepare(query)
-		if err != nil {
-			log.Fatal(err)
-		}
 		//fmt.Println("hello")
 		ts.Confirmed = make(map[time.Time]int)
 		ts.Death = make(map[time.Time]int)
 		ts.Recovered = make(map[time.Time]int)
 
-		/*var (
-			Date      string
-			Confirmed int
-		)
-		rows, err = db.Db.Query(fmt.Sprintf(`
-				SELECT * FROM TimeSeries%s`, filetype))
+		_, err = InjectTimeSeriesDate(beginDate, endDate, beginDateIndex, result, ts, id, filetype)
 		if err != nil {
 			log.Fatal(err)
+			w.WriteHeader(500)
+			w.Write([]byte("InjectTimeSeriesDate() failed"))
 		}
-		defer rows.Close()
-		for rows.Next() {
-			err := rows.Scan(&ID, &Date, &Confirmed)
-			if err != nil {
-				log.Fatal(err)
-			}
-			fmt.Println(ID, Date, Confirmed)
-		}*/
 
-		var (
-			Date time.Time
-			Type int
-		)
-		dateIndex := beginDateIndex
-		for date := beginDate; date != endDate.Add(time.Hour*24); date = date.AddDate(0, 0, 1) { // iterate between beginDate and endDate inclusive, incrementing by 1 Day
-			val, err := strconv.Atoi(result[dateIndex])
-			if err != nil {
-				log.Fatal(err)
-			}
-			//fmt.Printf("hewwo %v\n", date.String())
+	}
 
-			// Find row with existing id and date
-			rows, err := db.Db.Query(fmt.Sprintf(`
-			SELECT * FROM TimeSeries%s
-			`, filetype))
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer rows.Close()
-			for rows.Next() {
-				err := rows.Scan(&ID, &Date, &Type)
-				if err != nil {
-					log.Fatal(err)
-				}
-				//fmt.Println(ID, id, Date.Format("2006-1-2"), date.Format("2006-1-2"))
-				if ID == id && Date.Format("2006-1-2") == date.Format("2006-1-2") {
-					/*rows, err = db.Db.Exec(fmt.Sprintf(`
-					DELETE FROM TimeSeries%s
-					WHERE ID = %s AND Date = %v`,
-					filetype, id, date))*/
-					//fmt.Println(date)
-					//fmt.Println(Date)
-					_, err = db.Db.Exec(fmt.Sprintf(`
-					DELETE FROM TimeSeries%s
-					WHERE ID = %d AND Date = '%s'`, filetype, ID, Date.Format("2006-1-2"))) // remove based on
-					if err != nil {
-						log.Fatal(err)
-					}
-				}
-			}
+}
 
-			switch filetype {
-			case "Confirmed":
-				ts.Confirmed[date] = val
-				_, err = stmt.Exec(id, date, ts.Confirmed[date])
-			case "Death":
-				ts.Death[date] = val
-				_, err = stmt.Exec(id, date, ts.Death[date])
-			case "Recovered":
-				ts.Recovered[date] = val
-				_, err = stmt.Exec(id, date, ts.Recovered[date])
-			}
+func getDates(result []string) (time.Time, time.Time, int, error) {
+	// get beginDate and endDate
+	var (
+		beginDate      time.Time
+		endDate        time.Time
+		beginDateIndex int
+		err            error
+	)
+	beginFlag := false // true -> beginDate found; false Otherwise
+	endFlag := false
+	for i := range result {
+		if !beginFlag && len(strings.Split(result[i], "/")) == 3 {
+			beginDate, err = utils.ParseDate(result[i]) // parses Date string -> time.Time
 			if err != nil {
-				log.Fatal(err)
+				return beginDate, time.Time{}, i, err
 			}
-			dateIndex++
-			//fmt.Println(date.String())
+			beginDateIndex = i
+			beginFlag = true
+		}
+		if !endFlag && len(strings.Split(result[len(result)-i-1], "/")) == 3 { // searches backwards in array
+			endDate, err = utils.ParseDate(result[len(result)-i-1])
+			if err != nil {
+				return time.Time{}, endDate, -1, err
+			}
+			endFlag = true
 		}
 	}
 
+	return beginDate, endDate, beginDateIndex, err
+}
+
+func injectTimeSeries(Admin2Index int, ts TimeSeries) (int64, error) {
+	// check if address exists
+	var (
+		ID            int64
+		Address1      string
+		Address2      string
+		AddressExists bool
+	)
+	rows, err := db.Db.Query(`
+		SELECT ID, Address1, Address2 FROM TimeSeries
+		`)
+	if err != nil {
+		return -1, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		err = rows.Scan(&ID, &Address1, &Address2)
+		if err != nil {
+			return -1, err
+		}
+		if Address1 == ts.Address1 && Address2 == ts.Address2 {
+			AddressExists = true
+		}
+	}
+
+	var (
+		id    int64
+		query string
+	)
+	if AddressExists { // If an address exists, we simply use its id
+		id = ID
+	} else { // Else, inject a new address
+		if Admin2Index >= 0 {
+			query = "INSERT INTO TimeSeries(Admin2, Address1, Address2) VALUES(?,?,?)"
+		} else {
+			query = "INSERT INTO TimeSeries(Address1, Address2) VALUES(?,?)"
+		}
+		stmt, err := db.Db.Prepare(query)
+		if err != nil {
+			return -1, err
+		}
+		var res sql.Result
+		if Admin2Index >= 0 {
+			res, err = stmt.Exec(ts.Admin2, ts.Address1, ts.Address2)
+		} else {
+			res, err = stmt.Exec(ts.Address1, ts.Address2)
+		}
+		if err != nil {
+			return -1, err
+		}
+
+		id, err = res.LastInsertId()
+		if err != nil {
+			return id, err
+		}
+	}
+
+	return id, nil
+}
+
+func InjectTimeSeriesDate(beginDate time.Time, endDate time.Time, beginDateIndex int, result []string, ts TimeSeries, id int64, filetype string) (bool, error) {
+	query := fmt.Sprintf("INSERT INTO TimeSeries%s VALUES(?,?,?)", filetype)
+	stmt, err := db.Db.Prepare(query)
+	if err != nil {
+		return false, err
+	}
+
+	var (
+		ID   int64
+		Date time.Time
+		Type int
+	)
+	dateIndex := beginDateIndex
+	for date := beginDate; date != endDate.Add(time.Hour*24); date = date.AddDate(0, 0, 1) { // iterate between beginDate and endDate inclusive, incrementing by 1 Day
+		val, err := strconv.Atoi(result[dateIndex])
+		if err != nil {
+			return false, err
+		}
+		//fmt.Printf("hewwo %v\n", date.String())
+
+		// Find row with existing id and date
+		rows, err := db.Db.Query(fmt.Sprintf(`
+		SELECT * FROM TimeSeries%s
+		`, filetype))
+		if err != nil {
+			return false, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			err := rows.Scan(&ID, &Date, &Type)
+			if err != nil {
+				return false, err
+			}
+			//fmt.Println(ID, id, Date.Format("2006-1-2"), date.Format("2006-1-2"))
+			if ID == id && Date.Format("2006-1-2") == date.Format("2006-1-2") {
+				_, err = db.Db.Exec(fmt.Sprintf(`
+				DELETE FROM TimeSeries%s
+				WHERE ID = %d AND Date = '%s'`, filetype, ID, Date.Format("2006-1-2"))) // remove based on
+				if err != nil {
+					return false, err
+				}
+			}
+		}
+
+		switch filetype {
+		case "Confirmed":
+			ts.Confirmed[date] = val
+			//fmt.Println("lesgo")
+			_, err = stmt.Exec(id, date, ts.Confirmed[date])
+		case "Death":
+			ts.Death[date] = val
+			_, err = stmt.Exec(id, date, ts.Death[date])
+		case "Recovered":
+			ts.Recovered[date] = val
+			_, err = stmt.Exec(id, date, ts.Recovered[date])
+		}
+		if err != nil {
+			return false, err
+		}
+		dateIndex++
+		//fmt.Println(date.String())
+	}
+
+	return true, nil
 }
 
 func Update(w http.ResponseWriter, r *http.Request) {
