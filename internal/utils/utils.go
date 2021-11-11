@@ -83,10 +83,11 @@ func HasDupe(index int, arr []string) bool {
 	return false
 }
 
-func HandleErr(w http.ResponseWriter, code int) {
+func HandleErr(w http.ResponseWriter, code int, err error) {
 	w.WriteHeader(code)
 	response := fmt.Sprintf("Error status %d", code)
 	if _, err := w.Write([]byte(response)); err != nil {
 		log.Fatal(err)
 	}
+	log.Println("Error: ", err)
 }

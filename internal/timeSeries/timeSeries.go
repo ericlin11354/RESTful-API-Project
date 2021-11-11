@@ -52,7 +52,7 @@ func Routes() chi.Router {
 func List(w http.ResponseWriter, r *http.Request) {
 	query, dates, death, recovered, status := makeQuery(r.URL.Query())
 	if status == 400 {
-		utils.HandleErr(w, 400)
+		utils.HandleErr(w, 400, err)
 		return
 	}
 
@@ -60,7 +60,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 	stmt, err := db.Db.Prepare(query)
 	if err != nil {
-		utils.HandleErr(w, 500)
+		utils.HandleErr(w, 500, err)
 		return
 	}
 
@@ -68,7 +68,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 	row, err := stmt.Query()
 	if err != nil {
-		utils.HandleErr(w, 500)
+		utils.HandleErr(w, 500, err)
 		return
 	}
 	defer row.Close()
@@ -86,7 +86,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 		temp["address2"] = &sql.NullString{}
 		err := row.Scan(temp["id"], temp["admin2"], temp["address1"], temp["address2"])
 		if err != nil {
-			utils.HandleErr(w, 500)
+			utils.HandleErr(w, 500, err)
 			return
 		}
 		nullHandler(&ts, temp)
@@ -112,7 +112,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 		stmt, err := db.Db.Prepare(query)
 		if err != nil {
-			utils.HandleErr(w, 500)
+			utils.HandleErr(w, 500, err)
 			return
 		}
 
@@ -120,7 +120,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 		rows, err := stmt.Query()
 		if err != nil {
-			utils.HandleErr(w, 500)
+			utils.HandleErr(w, 500, err)
 			return
 		}
 
@@ -136,7 +136,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if err != nil {
-				utils.HandleErr(w, 500)
+				utils.HandleErr(w, 500, err)
 				return
 			}
 
@@ -180,12 +180,12 @@ func List(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err := writer.WriteAll(csvArr); err != nil {
-			utils.HandleErr(w, 500)
+			utils.HandleErr(w, 500, err)
 			return
 		}
 
 		if _, err := w.Write(b.Bytes()); err != nil {
-			utils.HandleErr(w, 500)
+			utils.HandleErr(w, 500, err)
 			return
 		}
 
@@ -193,7 +193,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 		// Writing response in JSON
 		w.Header().Set("Content-Type", "application/json")
 		if err = json.NewEncoder(w).Encode(tsArr); err != nil {
-			utils.HandleErr(w, 500)
+			utils.HandleErr(w, 500, err)
 			return
 		}
 	}
