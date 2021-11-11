@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -213,12 +212,13 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	ts := TimeSeries{}
 	reader := csv.NewReader(r.Body)
 
-	fmt.Println("running Create()")
+	//fmt.Println("running Create()")
 
 	// get header names
 	result, err := reader.Read()
 	if err != nil {
-		log.Fatal(err)
+		utils.HandleErr(w, 400, err)
+		return
 	}
 
 	// Directly access column values
@@ -229,21 +229,13 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	// allows for direct access to dates
 	beginDate, endDate, beginDateIndex, err := getDates(result)
 	if err != nil {
-		log.Fatal(err)
-		w.WriteHeader(500)
-		_, err := w.Write([]byte("Error 500: ParseDate() failed"))
-		if err != nil {
-			log.Fatal(err)
-		}
+		utils.HandleErr(w, 500, errors.New("ParseDate() failed"))
+		return
 	}
 
 	// Check for duplicate dates
 	if utils.HasDupe(beginDateIndex, result) {
-		w.WriteHeader(400)
-		_, err := w.Write([]byte("Error 400: File has duplicate dates"))
-		if err != nil {
-			log.Fatal(err)
-		}
+		utils.HandleErr(w, 400, errors.New("File has duplicate dates"))
 		return
 	}
 
@@ -263,7 +255,8 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
-			log.Fatal(err)
+			utils.HandleErr(w, 400, err)
+			return
 		}
 		if Admin2Index >= 0 { // Admin2 exists
 			ts.Admin2 = result[Admin2Index]
@@ -273,9 +266,8 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 		id, err := injectTimeSeries(Admin2Index, ts)
 		if err != nil {
-			log.Fatal(err)
-			w.WriteHeader(500)
-			w.Write([]byte("Error 500: injectTimeSeries() failed"))
+			utils.HandleErr(w, 500, errors.New("injectTimeSeries() failed"))
+			return
 		}
 
 		//fmt.Println("hello")
@@ -285,9 +277,8 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 		_, err = InjectTimeSeriesDate(beginDate, endDate, beginDateIndex, result, ts, id, filetype)
 		if err != nil {
-			log.Fatal(err)
-			w.WriteHeader(500)
-			w.Write([]byte("InjectTimeSeriesDate() failed"))
+			utils.HandleErr(w, 500, errors.New("injectTimeSeriesDate() failed"))
+			return
 		}
 
 	}
@@ -348,8 +339,10 @@ func injectTimeSeries(Admin2Index int, ts TimeSeries) (int64, error) {
 		}
 		if Admin2Index >= 0 && Admin2.String == ts.Admin2 && Address1 == ts.Address1 && Address2 == ts.Address2 {
 			AddressExists = true
+			break
 		} else if Address1 == ts.Address1 && Address2 == ts.Address2 {
 			AddressExists = true
+			break
 		}
 	}
 
@@ -378,7 +371,6 @@ func injectTimeSeries(Admin2Index int, ts TimeSeries) (int64, error) {
 		if err != nil {
 			return -1, err
 		}
-
 		id, err = res.LastInsertId()
 		if err != nil {
 			return id, err
@@ -422,7 +414,8 @@ func InjectTimeSeriesDate(beginDate time.Time, endDate time.Time, beginDateIndex
 				return false, err
 			}
 			//fmt.Println(ID, id, Date.Format("2006-1-2"), date.Format("2006-1-2"))
-			if ID == id && Date.Format("2006-1-2") == date.Format("2006-1-2") {
+			layout := "2006-1-2"
+			if ID == id && Date.Format(layout) == date.Format(layout) {
 				_, err = db.Db.Exec(fmt.Sprintf(`
 				DELETE FROM TimeSeries%s
 				WHERE ID = %d AND Date = '%s'`, filetype, ID, Date.Format("2006-1-2"))) // remove based on

@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -133,7 +135,199 @@ func List(w http.ResponseWriter, r *http.Request) {
 }
 
 func Create(w http.ResponseWriter, r *http.Request) {
+	date := r.Header.Get("Date")
 
+	dr := DailyReports{}
+	reader := csv.NewReader(r.Body)
+
+	// get header names
+	result, err := reader.Read()
+	if err != nil {
+		utils.HandleErr(w, 400, err)
+		return
+	}
+
+	// Directly access column values
+	var Admin2Index int = -1
+	var Address1Index int
+	var Address2Index int
+	var ConfirmedIndex int
+	var DeathIndex int
+	var RecoveredIndex int
+	var ActiveIndex int
+
+	for i := range result {
+		//fmt.Println(result[i])
+		switch result[i] {
+		case "Admin2":
+			Admin2Index = i
+		case "Province_State":
+			Address1Index = i
+		case "Country_Region":
+			Address2Index = i
+		case "Confirmed":
+			ConfirmedIndex = i
+		case "Deaths":
+			DeathIndex = i
+		case "Recovered":
+			RecoveredIndex = i
+		case "Active":
+			ActiveIndex = i
+		}
+	}
+
+	for {
+		result, err = reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		if Admin2Index >= 0 && strings.Compare(result[Admin2Index], "") != 0 { // Admin2 exists
+			dr.Admin2 = result[Admin2Index]
+		} else {
+			Admin2Index = -1
+		}
+		dr.Date, err = utils.ParseDate(date)
+		if err != nil {
+			utils.HandleErr(w, 400, err)
+			return
+		}
+		//fmt.Println(Address1Index, Address2Index)
+		dr.Address1 = result[Address1Index]
+		dr.Address2 = result[Address2Index]
+		dr.Confirmed, err = strconv.Atoi(result[ConfirmedIndex])
+		if err != nil {
+			utils.HandleErr(w, 400, err)
+			return
+		}
+		dr.Death, err = strconv.Atoi(result[DeathIndex])
+		if err != nil {
+			utils.HandleErr(w, 400, err)
+			return
+		}
+		dr.Active, err = strconv.Atoi(result[ActiveIndex])
+		if err != nil {
+			utils.HandleErr(w, 400, err)
+			return
+		}
+		dr.Recovered, err = strconv.Atoi(result[RecoveredIndex])
+		if err != nil {
+			utils.HandleErr(w, 400, err)
+			return
+		}
+
+		_, err := injectDailyReport(Admin2Index, dr)
+		if err != nil {
+			utils.HandleErr(w, 500, errors.New("injectDailyReport() failed"))
+			return
+		}
+
+	}
+
+}
+
+func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
+	// check if address exists
+	var (
+		ID            int64
+		Date          time.Time
+		Admin2        sql.NullString
+		Address1      string
+		Address2      string
+		Confirmed     int
+		Death         int
+		Recovered     int
+		Active        int
+		AddressExists bool
+	)
+	rows, err := db.Db.Query(`
+		SELECT ID, Date, Admin2, Address1, Address2, Confirmed, Death, Recovered, Active FROM DailyReports
+		`)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		err = rows.Scan(&ID, &Date, &Admin2, &Address1, &Address2, &Confirmed, &Death, &Recovered, &Active)
+		if err != nil {
+			return false, err
+		}
+		layout := "2006-1-2"
+		if Admin2Index >= 0 && Admin2.String == dr.Admin2 && Date.Format(layout) == dr.Date.Format(layout) && Address1 == dr.Address1 && Address2 == dr.Address2 && Confirmed == dr.Confirmed && Death == dr.Death && Recovered == dr.Recovered && Active == dr.Active {
+			AddressExists = true
+			break
+		} else if Date.Format(layout) == dr.Date.Format(layout) && Address1 == dr.Address1 && Address2 == dr.Address2 && Confirmed == dr.Confirmed && Death == dr.Death && Recovered == dr.Recovered && Active == dr.Active {
+			AddressExists = true
+			break
+		}
+	}
+
+	//fmt.Println(dr.Address1, Address2)
+
+	var (
+		query string
+	)
+	if AddressExists { //
+		_, err = db.Db.Exec(fmt.Sprintf(`
+		DELETE FROM DailyReports
+		WHERE ID = %d AND Date = '%s' AND Address1 = '%s' AND Address2 = '%s'
+		`, ID, Date.Format("2006-1-2"), dr.Address1, dr.Address2)) // remove based on
+		if err != nil {
+			return false, err
+		}
+	}
+	/**
+	The following cases determine the number of fields that we inject:
+	1. We inject existing ID and Admin2 exists
+	2. We inject existing ID and Admin2 does not exist / We don't inject existing ID and Admin2 exists
+	3. We don't inject existing ID and Admin2 does not exist
+	*/
+	if Admin2Index >= 0 && AddressExists {
+		query = "INSERT INTO DailyReports(ID, Date, Admin2, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?,?,?)"
+	} else if (Admin2Index >= 0 && !AddressExists) || (Admin2Index < 0 && AddressExists) {
+		if Admin2Index >= 0 {
+			query = "INSERT INTO DailyReports(Date, Admin2, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?,?)"
+		} else {
+			query = "INSERT INTO DailyReports(ID, Date, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?,?)"
+		}
+		//query = "INSERT INTO DailyReports VALUES(?,?,?,?,?,?,?,?)"
+	} else if Admin2Index < 0 && !AddressExists {
+		query = "INSERT INTO DailyReports(Date, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?)"
+	}
+	//fmt.Println("time to insert", Admin2Index, AddressExists)
+	stmt, err := db.Db.Prepare(query)
+	if err != nil {
+		return false, err
+	}
+	if Admin2Index >= 0 && AddressExists {
+		_, err = stmt.Exec(ID, dr.Date, dr.Admin2, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
+		if err != nil {
+			return false, err
+		}
+	} else if (Admin2Index >= 0 && !AddressExists) || (Admin2Index < 0 && AddressExists) {
+		if Admin2Index >= 0 {
+			_, err = stmt.Exec(dr.Date, dr.Admin2, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
+		} else {
+			_, err = stmt.Exec(ID, dr.Date, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
+		}
+	} else if Admin2Index < 0 && !AddressExists {
+		_, err = stmt.Exec(dr.Date, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
+	}
+	if err != nil {
+		return false, err
+	}
+	/*if Admin2Index >= 0 {
+		_, err = stmt.Exec(dr.Date, dr.Admin2, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
+	} else {
+		_, err = stmt.Exec(dr.Date, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
+	}
+	if err != nil {
+		return false, err
+	}*/
+
+	return true, nil
 }
 
 // Helper functions
