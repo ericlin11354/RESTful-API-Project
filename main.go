@@ -2,7 +2,7 @@ package main
 
 import (
 	// Built-ins
-	"fmt"
+
 	"log"
 	"net/http"
 	"os"
@@ -17,8 +17,6 @@ import (
 )
 
 func main() {
-	fmt.Println("Hello World!")
-
 	// Get port
 	port := "8080"
 	if fromEnv := os.Getenv("PORT"); fromEnv != "" {
@@ -32,7 +30,7 @@ func main() {
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
-		if _, err := w.Write([]byte("Hello World!")); err != nil {
+		if _, err := w.Write([]byte("CSC301 Assignment 2 Group 69")); err != nil {
 			log.Fatal(err)
 		}
 	})
@@ -42,5 +40,4 @@ func main() {
 
 	log.Printf("Listening for requests on http://localhost:%s/", port)
 	log.Fatal(http.ListenAndServe(":"+port, r))
-
 }
