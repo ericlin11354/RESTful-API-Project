@@ -277,10 +277,15 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			Admin2Index = i
 		case "province/state":
 			Address1Index = i
+		case "province_state":
+			Address1Index = i
 		case "country/region":
+			Address2Index = i
+		case "country_region":
 			Address2Index = i
 		}
 	}
+
 	for {
 		result, err = reader.Read()
 		if err == io.EOF {
@@ -293,7 +298,9 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		if Admin2Index >= 0 { // Admin2 exists
 			ts.Admin2 = result[Admin2Index]
 		}
-		ts.Address1 = result[Address1Index]
+		if Address1Index > 0 {
+			ts.Address1 = result[Address1Index]
+		}
 		ts.Address2 = result[Address2Index]
 		id, err := injectTimeSeries(Admin2Index, ts)
 		if err != nil {
