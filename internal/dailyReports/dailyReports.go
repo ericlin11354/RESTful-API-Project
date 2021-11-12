@@ -163,20 +163,20 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 	for i := range result {
 		//fmt.Println(result[i])
-		switch result[i] {
-		case "Admin2":
+		switch strings.ToLower(result[i]) {
+		case "admin2":
 			Admin2Index = i
-		case "Province_State":
+		case "province_state":
 			Address1Index = i
-		case "Country_Region":
+		case "country_region":
 			Address2Index = i
-		case "Confirmed":
+		case "confirmed":
 			ConfirmedIndex = i
-		case "Deaths":
+		case "deaths":
 			DeathIndex = i
-		case "Recovered":
+		case "recovered":
 			RecoveredIndex = i
-		case "Active":
+		case "active":
 			ActiveIndex = i
 		}
 	}
@@ -239,7 +239,7 @@ func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
 		ID            int64
 		Date          time.Time
 		Admin2        sql.NullString
-		Address1      string
+		Address1      sql.NullString
 		Address2      string
 		Confirmed     int
 		Death         int
@@ -260,10 +260,9 @@ func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
 			return false, err
 		}
 		layout := "2006-1-2"
-		if Admin2Index >= 0 && Admin2.String == dr.Admin2 && Date.Format(layout) == dr.Date.Format(layout) && Address1 == dr.Address1 && Address2 == dr.Address2 && Confirmed == dr.Confirmed && Death == dr.Death && Recovered == dr.Recovered && Active == dr.Active {
-			AddressExists = true
-			break
-		} else if Date.Format(layout) == dr.Date.Format(layout) && Address1 == dr.Address1 && Address2 == dr.Address2 && Confirmed == dr.Confirmed && Death == dr.Death && Recovered == dr.Recovered && Active == dr.Active {
+		if Admin2.String == dr.Admin2 && Date.Format(layout) == dr.Date.Format(layout) &&
+			Address1.String == dr.Address1 && Address2 == dr.Address2 &&
+			Confirmed == dr.Confirmed && Death == dr.Death && Recovered == dr.Recovered && Active == dr.Active {
 			AddressExists = true
 			break
 		}
