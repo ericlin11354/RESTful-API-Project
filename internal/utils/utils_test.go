@@ -54,7 +54,7 @@ func TestParamValidate(t *testing.T) {
 	}
 }
 
-func TestParseDataValidInput(t *testing.T) {
+func TestParseDateValidInput(t *testing.T) {
 	// 1 Jan 2020
 	input := "1/31/20"
 	date, err := ParseDate(input)
@@ -69,7 +69,7 @@ func TestParseDataValidInput(t *testing.T) {
 	}
 }
 
-func TestParseDataInvalidInput(t *testing.T) {
+func TestParseDateInvalidInput(t *testing.T) {
 	// Month over 12
 	input := "31/1/20"
 	date, err := ParseDate(input)
