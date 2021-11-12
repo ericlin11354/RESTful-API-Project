@@ -624,17 +624,26 @@ func TestInjectExistingTimeSeries(t *testing.T) {
 		t.Errorf("Error occured when injecting existing record: %v", err)
 	}
 
-}
-
-func TestInjectExistingAdmin2TimeSeries(t *testing.T) {
-	var ts TimeSeries
+	// test existing Address1 and Address2 but New Admin2
 	ts.Admin2 = "Madison"
 	ts.Address1 = "Ontario"
 	ts.Address2 = "Canada"
-	id, err := injectTimeSeries(-1, ts)
-
+	id, err = injectTimeSeries(-1, ts)
 	if id == 2 {
 		t.Fatalf("Test failed: id should not be 2")
+	}
+
+	if err != nil {
+		t.Errorf("Error occured when injecting existing record: %v", err)
+	}
+
+	// test existing Admin2 and Address2 but empty Address1
+	ts.Admin2 = "Autauga"
+	ts.Address1 = ""
+	ts.Address2 = "US"
+	id, err = injectTimeSeries(0, ts)
+	if id == 1 {
+		t.Fatalf("Test failed: id should not be 1")
 	}
 
 	if err != nil {
