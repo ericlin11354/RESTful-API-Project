@@ -16,6 +16,24 @@ import (
 	"gitlab.com/csc301-assignments/a2/internal/timeSeries"
 )
 
+// @title CSC301 Assignment2 Group69
+// @version 1.0
+// @description An API for csc301 a2
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name Supanat Wangsutthitham
+// @contact.url https://github.com/SupaJuke
+// @contact.email soup.wangsutthitham@mail.utoronto.ca
+
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host http://34.130.134.25:8080/
+// @BasePath /api/v1
+// @accept text/csv
+// @produce json text/csv
+// @schemes http
+
 func main() {
 	// Get port
 	port := "8080"

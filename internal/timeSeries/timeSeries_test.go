@@ -388,17 +388,6 @@ func TestMakeQuery(t *testing.T) {
 	}
 }
 
-// resp := w.Result()
-// body, _ := io.ReadAll(resp.Body)
-
-// fmt.Println(resp.StatusCode)
-// fmt.Println(resp.Header.Get("Content-Type"))
-// fmt.Println(string(body))
-
-// Output:
-// 200
-// text/html; charset=utf-8
-// <html><body>Hello World!</body></html>
 func TestListDefault(t *testing.T) {
 	db.InitDb("testing")
 	r := httptest.NewRequest("GET", "http://example.com/foo", nil)

@@ -47,6 +47,25 @@ func Routes() chi.Router {
 	return r
 }
 
+// List godoc
+// @Summary List TimeSeries
+// @Description get timeseries
+// @Tags TimeSeries
+// @Accept  text/csv
+// @Produce  json text/csv
+// @Param admin2 	query string false Allow multiple inputs, separated by a comma ',' (with no space)
+// @Param province 	query string false Allow multiple inputs, separated by a comma ',' (with no space)
+// @Param state 	query string false Allow multiple inputs, separated by a comma ',' (with no space)
+// @Param country 	query string false Allow multiple inputs, separated by a comma ',' (with no space)
+// @Param date 		query string false Must be in (mm/dd/yy) format; Allow multiple inputs, separated by a comma ',' (with no space)
+// @Param from 		query string false Must be in (mm/dd/yy) format; Allow multiple inputs, separated by a comma ',' (with no space)
+// @Param to 		query string false Must be in (mm/dd/yy) format; Allow multiple inputs, separated by a comma ',' (with no space)
+// @Param death 	query bool false Is mutually exclusive with recovered; Can be used without specifying the value ("?death" is ok)
+// @Param recovered query bool false Is mutually exclusive with death; Can be used without specifying the value ("?recovered" is ok)
+// @Success 200 {array} TimeSeries
+// @Failure 400 {string} string "Error status 400"
+// @Failure 500 {string} string "Error status 500"
+// @Router /time_series [get]
 func List(w http.ResponseWriter, r *http.Request) {
 	query, dates, death, recovered, status := makeQuery(r.URL.Query())
 	if status == 400 {
@@ -199,12 +218,24 @@ func List(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
 }
 
-/* Preconditions:
-1. Dates are contiguous.
-2. The only column values with '/' are dates.
-*/
+// Create godoc
+// @Summary Create/Update TimeSeries
+// @Description create/update timeseries
+// @Tags TimeSeries
+// @Accept text/csv
+// @Produce plain
+// @Param FileType header string true Must be either "confirmed", "death", or "recovered" (case insensitive)
+// @Param file body string true Must be a csv file (parsed as a binary)
+// @Success 200 {string} string "Successfully create/update data to the system"
+// @Failure 400 {string} string "Error status 400"
+// @Failure 500 {string} string "Error status 500"
+// @Router /time_series [post]
 func Create(w http.ResponseWriter, r *http.Request) {
-	filetype := r.Header.Get("FileType") // i.e. Recovered, Confirms, Deaths
+	/* Preconditions:
+	1. Dates are contiguous.
+	2. The only column values with '/' are dates.
+	*/
+	filetype := r.Header.Get("FileType") // i.e. Recovered, Confirmed, Deaths
 	ts := TimeSeries{}
 	reader := csv.NewReader(r.Body)
 
@@ -279,7 +310,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write to respond body
-	if err := w.Write([]byte("Successfully create/update data to the system")); err != nil {
+	if _, err := w.Write([]byte("Successfully create/update data to the system")); err != nil {
 		utils.HandleErr(w, 500, err)
 		return
 	}
