@@ -337,15 +337,13 @@ func injectTimeSeries(Admin2Index int, ts TimeSeries) (int64, error) {
 		if err != nil {
 			return -1, err
 		}
-		if Admin2.Valid && Admin2.String == ts.Admin2 {
+		if !Admin2.Valid {
 			continue
-		}
-		if Address1.String == ts.Address1 && Address2 == ts.Address2 {
+		} else if Admin2.String == ts.Admin2 && Address1.String == ts.Address1 && Address2 == ts.Address2 {
 			AddressExists = true
 			break
 		}
 	}
-
 	var (
 		id    int64
 		query string
@@ -353,6 +351,12 @@ func injectTimeSeries(Admin2Index int, ts TimeSeries) (int64, error) {
 	if AddressExists { // If an address exists, we simply use its id
 		id = ID
 	} else { // Else, inject a new address
+		/**
+		The following cases determine the number of fields that we inject:
+		1. Admin2 and Address1 exist
+		2. Admin2 does not exist but Address1 exists / Admin2 exists but Address1 does not exist
+		3. Both Admin2 and Address1 do not exist
+		*/
 		if Admin2Index >= 0 && len(ts.Address1) > 0 {
 			query = "INSERT INTO TimeSeries(Admin2, Address1, Address2) VALUES(?,?,?)"
 		} else if Admin2Index < 0 && len(ts.Address1) > 0 {
