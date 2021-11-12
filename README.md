@@ -96,3 +96,7 @@ POST requests will also update the existing data in the system if such record ha
 | Parameter | Type   | Mandatory? | Example | Notes    |
 | --------- | ------ | ---------- | ------- | -------- |
 | `Date`    | header | yes        | 1/31/20 | mm/dd/yy |
+
+# Test Coverage
+
+![coverage](./coverage.png)
