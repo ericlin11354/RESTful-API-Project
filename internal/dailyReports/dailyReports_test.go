@@ -265,7 +265,7 @@ func TestListAcceptCSV(t *testing.T) {
 }
 
 func TestCreateDefault(t *testing.T) {
-	db.InitDb("testing")
+	db.InitDb("development")
 	//Create body
 	b := new(bytes.Buffer)
 	writer := csv.NewWriter(b)
@@ -309,7 +309,7 @@ func TestCreateDefault(t *testing.T) {
 	}
 }
 func TestCreateBadHeader(t *testing.T) {
-	db.InitDb("testing")
+	db.InitDb("development")
 	//test no header
 
 	//Create body
@@ -375,11 +375,11 @@ func TestCreateBadHeader(t *testing.T) {
 }
 
 func TestCreateDuplicateAddress(t *testing.T) {
-	db.InitDb("testing")
+	db.InitDb("development")
 
 	// get database before injecting
 
-	//Create body
+	// Create body
 	b := new(bytes.Buffer)
 	writer := csv.NewWriter(b)
 
@@ -397,7 +397,7 @@ func TestCreateDuplicateAddress(t *testing.T) {
 		t.Errorf("Error during converting JSON: %v", err)
 	}
 
-	//test duplicate address
+	// test duplicate address
 
 	//fill 2d array
 	csvArr := [][]string{}
@@ -416,18 +416,12 @@ func TestCreateDuplicateAddress(t *testing.T) {
 	}
 
 	w = httptest.NewRecorder()
-
 	r = httptest.NewRequest("POST", "http://example.com/foo", b)
 
-	// Goal: call Create()
 	Create(w, r)
-
-	resp = w.Result()
-	body, _ = io.ReadAll(resp.Body)
 
 	// validate the data is actually updated
 	w = httptest.NewRecorder()
-
 	r = httptest.NewRequest("GET", "http://example.com/foo", b)
 	List(w, r)
 

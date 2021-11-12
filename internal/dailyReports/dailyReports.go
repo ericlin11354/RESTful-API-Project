@@ -354,9 +354,18 @@ func makeQuery(params map[string][]string) (string, int) {
 	for param, value := range params {
 		param = strings.ToLower(param)
 
+		// Validate parameters
 		var valid bool
 		if param, valid = utils.ParamValidate(param); !valid {
 			return "", 400
+		}
+
+		// Ignore these parameters
+		if param == "confirmed" ||
+			param == "death" ||
+			param == "recovered" ||
+			param == "active" {
+			continue
 		}
 
 		// Time interval

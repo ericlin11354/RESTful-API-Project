@@ -41,18 +41,60 @@ On the bright side, as these two objects share a lot of similarity, we were able
 
 # Documentations
 
-Note: we were trying to use Swagger, but due to the time constraint—ironically, even with the request for the 48 hours extension—we do not have the time to learn how to use Swagger properly. Hence we ended up putting our documentations in this README instead.
+> Note: we were trying to use Swagger, but due to the time constraint—ironically, even with the request for the 48 hours extension—we do not have the time to learn how to use Swagger properly. Hence, we ended up writing our documentations in this **README** instead.
 
-**`/api/v1/time_series`**
+For the query type parameters, do not include `""` (double-quotation mark) nor `''` (single-quotation mark) as this will render the request invalid.
+
+One can query multiple values in for a parameter by the following: `param=value1,value2,...`\
+This unfortunately implies that any values with `,` (comma) are bound to give undesired results as the application will treat the latter as another value (coupled with the fact that we have not yet support usage of quotation marks).
+
+Any parameters included in the query other than the ones documented will also make the request invalid.
+
+### **`/api/v1/time_series`**
 
 - **GET**
 
-  | Parameter              | Type   | Mandatory? | Example                | Notes                                   |
-  | ---------------------- | ------ | ---------- | ---------------------- | --------------------------------------- |
-  | `id`                   | query  | no         | 1                      |                                         |
-  | `admin2`               | query  | no         | Autauga                |                                         |
-  | `province` / `state`   | query  | no         | Ontario                | Both are interchangable                 |
-  | `country` / `region`   | query  | no         | Canada                 | Both are interchangable                 |
-  | `date` / `from` / `to` | query  | no         | 1/31/20                | mm/dd/yy                                |
-  | `death` / `recovered`  | query  | no         | death / recovered=true | Both are mutually exclusive<sup>1</sup> |
-  | `Accept`               | header | no         | text/csv               | Default to `application/json`           |
+  | Parameter              | Type   | Mandatory? | Example  | Notes                                   |
+  | ---------------------- | ------ | ---------- | -------- | --------------------------------------- |
+  | `id`                   | query  | no         | 1        |                                         |
+  | `admin2`               | query  | no         | Autauga  |                                         |
+  | `province` / `state`   | query  | no         | Ontario  | Both are interchangable                 |
+  | `country` / `region`   | query  | no         | Canada   | Both are interchangable                 |
+  | `date` / `from` / `to` | query  | no         | 1/31/20  | mm/dd/yy                                |
+  | `death` / `recovered`  | query  | no         | death    | Both are mutually exclusive<sup>1</sup> |
+  | `Accept`               | header | no         | text/csv | Default to `application/json`           |
+
+  1: To get `confirmed` TimeSeries, leave this query blank
+
+- **POST**
+
+  | Parameter  | Type   | Mandatory? | Example   |
+  | ---------- | ------ | ---------- | --------- |
+  | `FileType` | header | yes        | Confirmed |
+
+  <u>Notes:</u>
+
+  - Only CSV files are accepted.
+  - Any requests with CSV files containing duplicated dates will be rejected.
+  - This updates the existing data if there is such.
+
+### **`/api/v1/daily_reports`**
+
+- **GET**
+
+| Parameter              | Type   | Mandatory? | Example  | Notes                         |
+| ---------------------- | ------ | ---------- | -------- | ----------------------------- |
+| `id`                   | query  | no         | 1        |                               |
+| `admin2`               | query  | no         | Autauga  |                               |
+| `province` / `state`   | query  | no         | Ontario  | Both are interchangable       |
+| `country` / `region`   | query  | no         | Canada   | Both are interchangable       |
+| `date` / `from` / `to` | query  | no         | 1/31/20  | mm/dd/yy                      |
+| `Accept`               | header | no         | text/csv | Default to `application/json` |
+
+<u>Note:</u> Although `death`, `confirmed`, `recovered`, and `active` are not a valid query parameter (nor documented), it will not render the request invalid; it will simply be ignored.
+
+- **POST**
+
+| Parameter | Type   | Mandatory? | Example | Notes    |
+| --------- | ------ | ---------- | ------- | -------- |
+| `Date`    | header | yes        | 1/31/20 | mm/dd/yy |
