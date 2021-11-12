@@ -235,7 +235,13 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	1. Dates are contiguous.
 	2. The only column values with '/' are dates.
 	*/
-	filetype := r.Header.Get("FileType") // i.e. Recovered, Confirmed, Deaths
+	res, headerOK := utils.HeaderValidate(r.Header.Get("FileType"))
+	var filetype string
+	if headerOK {
+		filetype = strings.Title(res) // i.e. Recovered, Confirms, Deaths
+	} else {
+		return
+	}
 	ts := TimeSeries{}
 	reader := csv.NewReader(r.Body)
 
@@ -267,12 +273,12 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for i := range result {
-		switch result[i] {
-		case "Admin2":
+		switch strings.ToLower(result[i]) {
+		case "admin2":
 			Admin2Index = i
-		case "Province/State":
+		case "province/state":
 			Address1Index = i
-		case "Country/Region":
+		case "country/region":
 			Address2Index = i
 		}
 	}
@@ -290,7 +296,6 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		}
 		ts.Address1 = result[Address1Index]
 		ts.Address2 = result[Address2Index]
-
 		id, err := injectTimeSeries(Admin2Index, ts)
 		if err != nil {
 			utils.HandleErr(w, 500, err)
@@ -301,7 +306,6 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		ts.Confirmed = make(map[time.Time]int)
 		ts.Death = make(map[time.Time]int)
 		ts.Recovered = make(map[time.Time]int)
-
 		_, err = InjectTimeSeriesDate(beginDate, endDate, beginDateIndex, result, ts, id, filetype)
 		if err != nil {
 			utils.HandleErr(w, 500, err)
@@ -432,7 +436,6 @@ func InjectTimeSeriesDate(beginDate time.Time, endDate time.Time, beginDateIndex
 	if err != nil {
 		return false, err
 	}
-
 	var (
 		ID   int64
 		Date time.Time
@@ -471,15 +474,15 @@ func InjectTimeSeriesDate(beginDate time.Time, endDate time.Time, beginDateIndex
 			}
 		}
 
-		switch filetype {
-		case "Confirmed":
+		switch strings.ToLower(filetype) {
+		case "confirmed":
 			ts.Confirmed[date] = val
 			//fmt.Println("lesgo")
 			_, err = stmt.Exec(id, date, ts.Confirmed[date])
-		case "Death":
+		case "death":
 			ts.Death[date] = val
 			_, err = stmt.Exec(id, date, ts.Death[date])
-		case "Recovered":
+		case "recovered":
 			ts.Recovered[date] = val
 			_, err = stmt.Exec(id, date, ts.Recovered[date])
 		}

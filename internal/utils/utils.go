@@ -29,6 +29,17 @@ func ParamValidate(param string) (string, bool) {
 	return result, ok
 }
 
+func HeaderValidate(header string) (string, bool) {
+	header = strings.ToLower(header)
+	validator := map[string]string{
+		"confirmed": "confirmed",
+		"death":     "death",
+		"recovered": "recovered",
+	}
+	result, ok := validator[header]
+	return result, ok
+}
+
 /**
 Helper function for Create().
 Takes Date string and returns type Date as type time.Time

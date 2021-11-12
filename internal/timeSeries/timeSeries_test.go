@@ -690,15 +690,39 @@ func TestCreate(t *testing.T) {
 	// Goal: call Create()
 	Create(w, r)
 
-	List(w, r)
-
 	resp := w.Result()
 	body, _ := io.ReadAll(resp.Body)
 
-	tsArr := []TimeSeries{}
-	err := json.Unmarshal(body, &tsArr)
-	if err != nil {
-		t.Errorf("Error during converting JSON: %v", err)
+	expectedCode := 200
+	if resp.StatusCode != expectedCode {
+		t.Fatalf("Test failed: expected code %d, got %d", expectedCode, resp.StatusCode)
 	}
 
+	expectedBody := "Successfully create/update data to the system"
+	if string(body) != expectedBody {
+		t.Fatalf("Test failed: expected body %s, got %s", expectedBody, string(body))
+	}
+
+	// TODO: validate the data is actually updated
+	// List(w, r)
+
+	// tsArr := []TimeSeries{}
+	// err := json.Unmarshal(body, &tsArr)
+	// if err != nil {
+	// 	t.Errorf("Error during converting JSON: %v", err)
+	// }
+}
+
+func TestCreateBadHeader(t *testing.T) {
+	// TODO: Test no header
+
+	// TODO: Test invaid header (optional)
+}
+
+func TestCreateInvalidDateFormat(t *testing.T) {
+	// TODO: Test bad inputs
+}
+
+func TestCreateDuplicatedDatesOneFile(t *testing.T) {
+	// TODO: Test 2 same dates in one file
 }

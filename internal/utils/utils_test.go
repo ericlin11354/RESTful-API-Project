@@ -54,7 +54,30 @@ func TestParamValidate(t *testing.T) {
 	}
 }
 
-func TestParseDateValidInput(t *testing.T) {
+func TestHeaderValidate(t *testing.T) {
+	headers := []string{
+		"abc",
+		"confirmed",
+		"death",
+		"recovered",
+	}
+	var res string
+	var ok bool
+	for _, v := range headers {
+		res, ok = HeaderValidate(v)
+		if !ok {
+			if res != "" {
+				t.Fatalf("Test failed: does not return empty string upon key error")
+			}
+		} else {
+			if res != v {
+				t.Fatalf("Test failed: validating %s failed", v)
+			}
+		}
+	}
+}
+
+func TestParseDataValidInput(t *testing.T) {
 	// 1 Jan 2020
 	input := "1/31/20"
 	date, err := ParseDate(input)
