@@ -141,6 +141,12 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 func Create(w http.ResponseWriter, r *http.Request) {
 	date := r.Header.Get("Date")
+	//fmt.Println(date)
+	_, err := utils.ParseDate(date)
+	if date == "" || err != nil {
+		utils.HandleErr(w, 400, err)
+		return
+	}
 
 	dr := DailyReports{}
 	reader := csv.NewReader(r.Body)
@@ -225,12 +231,18 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 		_, err := injectDailyReport(Admin2Index, dr)
 		if err != nil {
-			utils.HandleErr(w, 500, errors.New("injectDailyReport() failed"))
+			utils.HandleErr(w, 500, err)
 			return
 		}
 
 	}
+	// Write to respond body
+	if _, err := w.Write([]byte("Successfully create/update data to the system")); err != nil {
+		utils.HandleErr(w, 500, err)
+		return
+	}
 
+	w.WriteHeader(200)
 }
 
 func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
@@ -322,14 +334,6 @@ func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	/*if Admin2Index >= 0 {
-		_, err = stmt.Exec(dr.Date, dr.Admin2, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
-	} else {
-		_, err = stmt.Exec(dr.Date, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
-	}
-	if err != nil {
-		return false, err
-	}*/
 
 	return true, nil
 }
