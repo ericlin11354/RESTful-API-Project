@@ -325,31 +325,32 @@ func injectTimeSeries(Admin2Index int, ts TimeSeries) (int64, error) {
 		Address2      string
 		AddressExists bool
 	)
-	rows, err := db.Db.Query(`
-		SELECT ID, Admin2, Address1, Address2 FROM TimeSeries
-		`)
+	rows, err := db.Db.Query("SELECT ID, Admin2, Address1, Address2 FROM TimeSeries")
 	if err != nil {
 		return -1, err
 	}
 	defer rows.Close()
+	// iterate records
 	for rows.Next() {
 		err = rows.Scan(&ID, &Admin2, &Address1, &Address2)
 		if err != nil {
 			return -1, err
 		}
-		if !Admin2.Valid {
-			continue
-		} else if Admin2.String == ts.Admin2 && Address1.String == ts.Address1 && Address2 == ts.Address2 {
+
+		if Admin2.String == ts.Admin2 &&
+			Address1.String == ts.Address1 &&
+			Address2 == ts.Address2 {
 			AddressExists = true
 			break
 		}
 	}
 	var (
-		id    int64
-		query string
+		repeatedID int64
+		query      string
 	)
+
 	if AddressExists { // If an address exists, we simply use its id
-		id = ID
+		repeatedID = ID
 	} else { // Else, inject a new address
 		/**
 		The following cases determine the number of fields that we inject:
@@ -357,13 +358,13 @@ func injectTimeSeries(Admin2Index int, ts TimeSeries) (int64, error) {
 		2. Admin2 does not exist but Address1 exists / Admin2 exists but Address1 does not exist
 		3. Both Admin2 and Address1 do not exist
 		*/
-		if Admin2Index >= 0 && len(ts.Address1) > 0 {
+		if Admin2Index >= 0 && ts.Address1 != "" {
 			query = "INSERT INTO TimeSeries(Admin2, Address1, Address2) VALUES(?,?,?)"
-		} else if Admin2Index < 0 && len(ts.Address1) > 0 {
+		} else if Admin2Index < 0 && ts.Address1 != "" {
 			query = "INSERT INTO TimeSeries(Address1, Address2) VALUES(?,?)"
-		} else if Admin2Index >= 0 && len(ts.Address1) == 0 {
+		} else if Admin2Index >= 0 && ts.Address1 == "" {
 			query = "INSERT INTO TimeSeries(Admin2, Address2) VALUES(?,?)"
-		} else if Admin2Index < 0 && len(ts.Address1) == 0 {
+		} else if Admin2Index < 0 && ts.Address1 == "" {
 			query = "INSERT INTO TimeSeries(Address2) VALUES(?)"
 		}
 		stmt, err := db.Db.Prepare(query)
@@ -383,13 +384,13 @@ func injectTimeSeries(Admin2Index int, ts TimeSeries) (int64, error) {
 		if err != nil {
 			return -1, err
 		}
-		id, err = res.LastInsertId()
+		repeatedID, err = res.LastInsertId()
 		if err != nil {
-			return id, err
+			return repeatedID, err
 		}
 	}
 
-	return id, nil
+	return repeatedID, nil
 }
 
 func InjectTimeSeriesDate(beginDate time.Time, endDate time.Time, beginDateIndex int, result []string, ts TimeSeries, id int64, filetype string) (bool, error) {

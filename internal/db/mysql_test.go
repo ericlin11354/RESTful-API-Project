@@ -5,7 +5,7 @@ import (
 )
 
 func TestInitDb(t *testing.T) {
-	InitDb()
-	InitDb("testing")
-	InitDb("local")
+	// InitDb()
+	// InitDb("testing")
+	// InitDb("local")
 }
