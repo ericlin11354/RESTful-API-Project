@@ -14,6 +14,7 @@ before_script:
   - cat $ENV > .env
   - cat $ENV > ./internal/timeSeries/.env
   - cat $ENV > ./internal/dailyReports/.env
+  - cat $ENV > ./internal/db/.env
 
 stages:
   - build

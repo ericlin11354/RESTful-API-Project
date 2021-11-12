@@ -37,6 +37,20 @@ CREATE TABLE TimeSeriesRecovered(
 	FOREIGN KEY (ID) REFERENCES TimeSeries(ID)
 );
 
+CREATE TABLE DailyReports(
+	ID INT AUTO_INCREMENT,
+	Date Date NOT NULL,
+	Admin2 VARCHAR(128),
+	Address1 VARCHAR(128),
+	Address2 VARCHAR(128) NOT NULL,
+	Confirmed INT,
+	Death INT,
+	Recovered INT,
+	Active INT,
+	PRIMARY KEY(ID),
+	CONSTRAINT ADKey UNIQUE (Date,Admin2,Address1,Address2)
+);
+
 INSERT INTO TimeSeries(Admin2, Address1, Address2)
 VALUES('Autauga', 'Alabama', 'US');
 
@@ -61,23 +75,10 @@ INSERT INTO TimeSeriesRecovered VALUES
 (2, "2020/01/31", 3),
 (2, "2021/10/31", 311);
 
-CREATE TABLE DailyReports(
-	ID INT AUTO_INCREMENT,
-	Date Date NOT NULL,
-	Admin2 VARCHAR(128),
-	Address1 VARCHAR(128),
-	Address2 VARCHAR(128) NOT NULL,
-	Confirmed INT,
-	Death INT,
-	Recovered INT,
-	Active INT,
-	PRIMARY KEY(ID),
-	CONSTRAINT ADKey UNIQUE (Date,Admin2,Address1,Address2)
-);
-
 INSERT INTO DailyReports(Date, Admin2, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES
 ("2020/06/05", 'Abbeville', 'South Carolina', 'US', 47,0,0,47),
 ("2020/01/31", 'Abbeville', 'South Carolina', 'US', 1,2,3,4);
+
 INSERT INTO DailyReports(Date, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES
 ("2020/02/14", 'Ontario', 'Canada', 5,6,7,8),
 ("2020/11/16", 'British Columbia', 'Canada', 301,343,369,373);
