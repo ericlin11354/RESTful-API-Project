@@ -303,7 +303,7 @@ func TestCreateDefault(t *testing.T) {
 		t.Fatalf("Test failed: expected code %d, got %d", expectedCode, resp.StatusCode)
 	}
 
-	expectedBody := "Successfully create/update data to the system"
+	expectedBody := "200 Success: created/updated data to the system"
 	if string(body) != expectedBody {
 		t.Fatalf("Test failed: expected body %s, got %s", expectedBody, string(body))
 	}

@@ -312,7 +312,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write to respond body
-	if _, err := w.Write([]byte("Successfully create/update data to the system")); err != nil {
+	if _, err := w.Write([]byte("200 Success: created/updated data to the system")); err != nil {
 		utils.HandleErr(w, 500, err)
 		return
 	}
