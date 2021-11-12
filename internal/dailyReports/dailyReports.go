@@ -208,6 +208,12 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if indices["add1"] > 0 && result[indices["add1"]] != "" {
+			dr.Admin2 = result[indices["add1"]]
+		} else {
+			indices["add1"] = 0
+		}
+
 		dr.Address1 = result[indices["add1"]]
 		dr.Address2 = result[indices["add2"]]
 
@@ -232,7 +238,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		_, err := injectDailyReport(indices["admin2"], dr)
+		_, err := injectDailyReport(indices["admin2"], indices["add1"], dr)
 		if err != nil {
 			utils.HandleErr(w, 500, err)
 			return
@@ -255,7 +261,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
+func injectDailyReport(Admin2Index int, Address1Index int, dr DailyReports) (bool, error) {
 	// check if address exists
 	var (
 		ID            int64
@@ -285,8 +291,7 @@ func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
 
 		layout := "2006-1-2"
 		if Admin2.String == dr.Admin2 && Date.Format(layout) == dr.Date.Format(layout) &&
-			Address1.String == dr.Address1 && Address2 == dr.Address2 &&
-			Confirmed == dr.Confirmed && Death == dr.Death && Recovered == dr.Recovered && Active == dr.Active {
+			Address1.String == dr.Address1 && Address2 == dr.Address2 {
 			AddressExists = true
 			break
 		}
@@ -296,8 +301,8 @@ func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
 	if AddressExists { //
 		_, err = db.Db.Exec(fmt.Sprintf(`
 		DELETE FROM DailyReports
-		WHERE ID = %d AND Date = '%s' AND Address1 = '%s' AND Address2 = '%s'
-		`, ID, Date.Format("2006-1-2"), dr.Address1, dr.Address2)) // remove based on
+		WHERE ID = %d
+		`, ID)) // remove based on
 		if err != nil {
 			return false, err
 		}
@@ -311,19 +316,26 @@ func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
 	*/
 	if Admin2Index >= 0 && AddressExists {
 		query = "INSERT INTO DailyReports(ID, Date, Admin2, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?,?,?)"
-	} else if (Admin2Index >= 0 && !AddressExists) || (Admin2Index < 0 && AddressExists) {
+	} else if (Admin2Index < 0 && AddressExists) || (Admin2Index >= 0 && !AddressExists) {
 		if Admin2Index >= 0 {
 			query = "INSERT INTO DailyReports(Date, Admin2, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?,?)"
-		} else {
+		} else if Address1Index > 0 {
 			query = "INSERT INTO DailyReports(ID, Date, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?,?)"
+		} else {
+			query = "INSERT INTO DailyReports(ID, Date, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?)"
 		}
 	} else if Admin2Index < 0 && !AddressExists {
-		query = "INSERT INTO DailyReports(Date, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?)"
+		if Address1Index == 0 {
+			query = "INSERT INTO DailyReports(Date, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?)"
+		} else {
+			query = "INSERT INTO DailyReports(Date, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?)"
+		}
 	}
 	stmt, err := db.Db.Prepare(query)
 	if err != nil {
 		return false, err
 	}
+
 	if Admin2Index >= 0 && AddressExists {
 		_, err = stmt.Exec(ID, dr.Date, dr.Admin2, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
 		if err != nil {
@@ -332,11 +344,17 @@ func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
 	} else if (Admin2Index >= 0 && !AddressExists) || (Admin2Index < 0 && AddressExists) {
 		if Admin2Index >= 0 {
 			_, err = stmt.Exec(dr.Date, dr.Admin2, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
-		} else {
+		} else if Address1Index > 0 {
 			_, err = stmt.Exec(ID, dr.Date, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
+		} else {
+			_, err = stmt.Exec(ID, dr.Date, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
 		}
 	} else if Admin2Index < 0 && !AddressExists {
-		_, err = stmt.Exec(dr.Date, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
+		if Address1Index == 0 {
+			_, err = stmt.Exec(dr.Date, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
+		} else {
+			_, err = stmt.Exec(dr.Date, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
+		}
 	}
 	if err != nil {
 		return false, err
