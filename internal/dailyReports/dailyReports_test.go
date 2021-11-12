@@ -1,10 +1,13 @@
 package dailyReports
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/csv"
 	"encoding/json"
 	"io"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -258,5 +261,186 @@ func TestListAcceptCSV(t *testing.T) {
 
 	if header != expectedHeader {
 		t.Fatalf("Test failed: expected csvheader %s, got %s", expectedHeader, header)
+	}
+}
+
+func TestCreateDefault(t *testing.T) {
+	db.InitDb("testing")
+	//Create body
+	b := new(bytes.Buffer)
+	writer := csv.NewWriter(b)
+
+	//fill 2d array
+	csvArr := [][]string{}
+	header := []string{
+		"Admin2", "Province_State", "Country_Region", "Confirmed", "Deaths", "Recovered", "Active",
+	}
+	csvArr = append(csvArr, header)
+	row := []string{
+		"", "Ontario", "Canada", "420", "69", "1337", "96",
+	}
+	csvArr = append(csvArr, row)
+
+	// Write to buffer
+	if err := writer.WriteAll(csvArr); err != nil {
+		t.Errorf("Error while converting csvArr to bytes")
+	}
+
+	w := httptest.NewRecorder()
+
+	// curl --data-binary @timeSeries_test2.csv
+	r := httptest.NewRequest("POST", "http://example.com/foo", b)
+	r.Header.Set("Date", "1/20/21")
+
+	// Goal: call Create()
+	Create(w, r)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+
+	expectedCode := 200
+	if resp.StatusCode != expectedCode {
+		t.Fatalf("Test failed: expected code %d, got %d", expectedCode, resp.StatusCode)
+	}
+
+	expectedBody := "Successfully create/update data to the system"
+	if string(body) != expectedBody {
+		t.Fatalf("Test failed: expected body %s, got %s", expectedBody, string(body))
+	}
+}
+func TestCreateBadHeader(t *testing.T) {
+	db.InitDb("testing")
+	//test no header
+
+	//Create body
+	b := new(bytes.Buffer)
+	writer := csv.NewWriter(b)
+
+	//fill 2d array
+	csvArr := [][]string{}
+	header := []string{
+		"Admin2", "Province_State", "Country_Region", "Confirmed", "Deaths", "Recovered", "Active",
+	}
+	csvArr = append(csvArr, header)
+	row := []string{
+		"", "Ontario", "Canada", "420", "69", "1337", "96",
+	}
+	csvArr = append(csvArr, row)
+
+	// Write to buffer
+	if err := writer.WriteAll(csvArr); err != nil {
+		t.Errorf("Error while converting csvArr to bytes")
+	}
+
+	w := httptest.NewRecorder()
+
+	r := httptest.NewRequest("POST", "http://example.com/foo", b)
+
+	// Goal: call Create()
+	Create(w, r)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+
+	expectedCode := 400
+	if resp.StatusCode != expectedCode {
+		t.Fatalf("Test failed: expected code %d, got %d", expectedCode, resp.StatusCode)
+	}
+
+	expectedBody := "Error status 400"
+	if string(body) != expectedBody {
+		t.Fatalf("Test failed: expected body %s, got %s", expectedBody, string(body))
+	}
+
+	w = httptest.NewRecorder()
+	r = httptest.NewRequest("POST", "http://example.com/foo", b)
+	//test invalid header
+	r.Header.Set("Date", "1/20/2021")
+
+	// Goal: call Create()
+	Create(w, r)
+
+	resp = w.Result()
+	body, _ = io.ReadAll(resp.Body)
+
+	expectedCode = 400
+	if resp.StatusCode != expectedCode {
+		t.Fatalf("Test failed: expected code %d, got %d", expectedCode, resp.StatusCode)
+	}
+
+	expectedBody = "Error status 400"
+	if string(body) != expectedBody {
+		t.Fatalf("Test failed: expected body %s, got %s", expectedBody, string(body))
+	}
+}
+
+func TestCreateDuplicateAddress(t *testing.T) {
+	db.InitDb("testing")
+
+	// get database before injecting
+
+	//Create body
+	b := new(bytes.Buffer)
+	writer := csv.NewWriter(b)
+
+	w := httptest.NewRecorder()
+
+	r := httptest.NewRequest("GET", "http://example.com/foo", b)
+	List(w, r)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+
+	oldDailyReportsArr := []DailyReports{}
+	err := json.Unmarshal(body, &oldDailyReportsArr)
+	if err != nil {
+		t.Errorf("Error during converting JSON: %v", err)
+	}
+
+	//test duplicate address
+
+	//fill 2d array
+	csvArr := [][]string{}
+	header := []string{
+		"Admin2", "Province_State", "Country_Region", "Confirmed", "Deaths", "Recovered", "Active",
+	}
+	csvArr = append(csvArr, header)
+	row := []string{
+		"Abbeville", "South Carolina", "US", "47", "0", "0", "47",
+	}
+	csvArr = append(csvArr, row)
+
+	// Write to buffer
+	if err := writer.WriteAll(csvArr); err != nil {
+		t.Errorf("Error while converting csvArr to bytes")
+	}
+
+	w = httptest.NewRecorder()
+
+	r = httptest.NewRequest("POST", "http://example.com/foo", b)
+
+	// Goal: call Create()
+	Create(w, r)
+
+	resp = w.Result()
+	body, _ = io.ReadAll(resp.Body)
+
+	// validate the data is actually updated
+	w = httptest.NewRecorder()
+
+	r = httptest.NewRequest("GET", "http://example.com/foo", b)
+	List(w, r)
+
+	resp = w.Result()
+	body, _ = io.ReadAll(resp.Body)
+
+	newDailyReportsArr := []DailyReports{}
+	err = json.Unmarshal(body, &newDailyReportsArr)
+	if err != nil {
+		t.Errorf("Error during converting JSON: %v", err)
+	}
+
+	if !reflect.DeepEqual(oldDailyReportsArr, newDailyReportsArr) {
+		t.Fatalf("Test failed: expected code %v, got %v", oldDailyReportsArr, newDailyReportsArr)
 	}
 }
