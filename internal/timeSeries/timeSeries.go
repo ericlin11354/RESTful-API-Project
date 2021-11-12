@@ -236,7 +236,6 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	2. The only column values with '/' are dates.
 	*/
 	res, headerOK := utils.HeaderValidate(r.Header.Get("FileType"))
-	//fmt.Println(headerOK)
 	var filetype string
 	if headerOK {
 		filetype = strings.Title(res) // i.e. Recovered, Confirms, Deaths
@@ -246,8 +245,6 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 	ts := TimeSeries{}
 	reader := csv.NewReader(r.Body)
-
-	//fmt.Println("running Create()")
 
 	// get header names
 	result, err := reader.Read()
@@ -304,7 +301,6 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		//fmt.Println("hello")
 		ts.Confirmed = make(map[time.Time]int)
 		ts.Death = make(map[time.Time]int)
 		ts.Recovered = make(map[time.Time]int)
@@ -449,7 +445,6 @@ func InjectTimeSeriesDate(beginDate time.Time, endDate time.Time, beginDateIndex
 		if err != nil {
 			return false, err
 		}
-		//fmt.Printf("hewwo %v\n", date.String())
 
 		// Find row with existing id and date
 		rows, err := db.Db.Query(fmt.Sprintf(`
@@ -464,7 +459,6 @@ func InjectTimeSeriesDate(beginDate time.Time, endDate time.Time, beginDateIndex
 			if err != nil {
 				return false, err
 			}
-			//fmt.Println(ID, id, Date.Format("2006-1-2"), date.Format("2006-1-2"))
 			layout := "2006-1-2"
 			if ID == id && Date.Format(layout) == date.Format(layout) {
 				_, err = db.Db.Exec(fmt.Sprintf(`
@@ -479,7 +473,6 @@ func InjectTimeSeriesDate(beginDate time.Time, endDate time.Time, beginDateIndex
 		switch strings.ToLower(filetype) {
 		case "confirmed":
 			ts.Confirmed[date] = val
-			//fmt.Println("lesgo")
 			_, err = stmt.Exec(id, date, ts.Confirmed[date])
 		case "death":
 			ts.Death[date] = val
@@ -492,7 +485,6 @@ func InjectTimeSeriesDate(beginDate time.Time, endDate time.Time, beginDateIndex
 			return false, err
 		}
 		dateIndex++
-		//fmt.Println(date.String())
 	}
 
 	return true, nil
