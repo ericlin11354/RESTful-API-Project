@@ -543,7 +543,7 @@ func TestListCSVRequests(t *testing.T) {
 	}
 }
 
-func TestGetSingleDate(t *testing.T) {
+func TestGetDateSingleDate(t *testing.T) {
 	arr := []string{"1/20/21"}
 	beginDate, endDate, beginDateIndex, err := getDates(arr)
 	expectedBeginDate := time.Date(2021, 1, 20, 0, 0, 0, 0, time.UTC)
@@ -566,7 +566,7 @@ func TestGetSingleDate(t *testing.T) {
 	}
 }
 
-func TestGetEmptyData(t *testing.T) {
+func TestGetDataEmptyData(t *testing.T) {
 	var arr []string
 	beginDate, endDate, beginDateIndex, err := getDates(arr)
 	expectedBeginDate := time.Time{}
@@ -585,7 +585,7 @@ func TestGetEmptyData(t *testing.T) {
 	}
 }
 
-func TestGetThreeDates(t *testing.T) {
+func TestGetDatesThreeDates(t *testing.T) {
 	arr := []string{"1/20/21", "1/22/21", "1/30/21"}
 	beginDate, endDate, beginDateIndex, err := getDates(arr)
 	expectedBeginDate := time.Date(2021, 1, 20, 0, 0, 0, 0, time.UTC)
@@ -610,7 +610,7 @@ func TestGetThreeDates(t *testing.T) {
 
 // test injectTimeSeries
 // NOTE: tests assume that database is setup according to create-tables.sql
-func TestInjectExistingTimeSeries(t *testing.T) {
+func TestInjectTimeSeriesExistingTimeSeries(t *testing.T) {
 	var ts TimeSeries
 	ts.Admin2 = "Autauga"
 	ts.Address1 = "Alabama"
