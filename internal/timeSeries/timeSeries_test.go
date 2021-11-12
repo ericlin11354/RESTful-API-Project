@@ -696,10 +696,6 @@ func TestInjectTimeSeriesExistingTimeSeries(t *testing.T) {
 
 func TestCreate(t *testing.T) {
 	db.InitDb("development")
-	// rows, err := db.Db.Query(`SELECT * FROM TimeSeries"`)
-	// if err != nil {
-	// 	t.Errorf("Error ocurred when querying TimeSeries: %v", err)
-	// }
 
 	// Creating the body of the request
 	b := new(bytes.Buffer)
@@ -742,15 +738,6 @@ func TestCreate(t *testing.T) {
 	if string(body) != expectedBody {
 		t.Fatalf("Test failed: expected body %s, got %s", expectedBody, string(body))
 	}
-
-	// TODO: validate the data is actually updated
-	// List(w, r)
-
-	// tsArr := []TimeSeries{}
-	// err := json.Unmarshal(body, &tsArr)
-	// if err != nil {
-	// 	t.Errorf("Error during converting JSON: %v", err)
-	// }
 }
 
 func TestCreateBadHeader(t *testing.T) {
@@ -873,10 +860,6 @@ func TestCreateDuplicatedDatesOneFile(t *testing.T) {
 	// Test 2 same dates in one file
 
 	db.InitDb("testing")
-	// rows, err := db.Db.Query(`SELECT * FROM TimeSeries"`)
-	// if err != nil {
-	// 	t.Errorf("Error ocurred when querying TimeSeries: %v", err)
-	// }
 
 	// Creating the body of the request
 	b := new(bytes.Buffer)

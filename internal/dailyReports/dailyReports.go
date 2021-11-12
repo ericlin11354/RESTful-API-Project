@@ -141,7 +141,6 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 func Create(w http.ResponseWriter, r *http.Request) {
 	date := r.Header.Get("Date")
-	//fmt.Println(date)
 	_, err := utils.ParseDate(date)
 	if date == "" || err != nil {
 		utils.HandleErr(w, 400, err)
@@ -168,7 +167,6 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	var ActiveIndex int
 
 	for i := range result {
-		//fmt.Println(result[i])
 		switch strings.ToLower(result[i]) {
 		case "admin2":
 			Admin2Index = i
@@ -205,7 +203,6 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			utils.HandleErr(w, 400, err)
 			return
 		}
-		//fmt.Println(Address1Index, Address2Index)
 		dr.Address1 = result[Address1Index]
 		dr.Address2 = result[Address2Index]
 		dr.Confirmed, err = strconv.Atoi(result[ConfirmedIndex])
@@ -280,8 +277,6 @@ func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
 		}
 	}
 
-	//fmt.Println(dr.Address1, Address2)
-
 	var (
 		query string
 	)
@@ -308,11 +303,9 @@ func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
 		} else {
 			query = "INSERT INTO DailyReports(ID, Date, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?,?)"
 		}
-		//query = "INSERT INTO DailyReports VALUES(?,?,?,?,?,?,?,?)"
 	} else if Admin2Index < 0 && !AddressExists {
 		query = "INSERT INTO DailyReports(Date, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?)"
 	}
-	//fmt.Println("time to insert", Admin2Index, AddressExists)
 	stmt, err := db.Db.Prepare(query)
 	if err != nil {
 		return false, err
