@@ -45,10 +45,13 @@ On the bright side, as these two objects share a lot of similarity, we were able
 
 For the query type parameters, do not include `""` (double-quotation mark) nor `''` (single-quotation mark) as this will render the request invalid.
 
-One can query multiple values in for a parameter by the following: `param=value1,value2,...`\
+One can query multiple values in for a parameter by the following: `param=value1,value2,...` \
 This unfortunately implies that any values with `,` (comma) are bound to give undesired results as the application will treat the latter as another value (coupled with the fact that we have not yet support usage of quotation marks).
 
 Any parameters included in the query other than the ones documented will also make the request invalid.
+
+When making a POST request to the application, only CSV files are accepted; any requests with CSV files containing duplicated dates will be rejected. \
+POST requests will also update the existing data in the system if such record has already been uploaded before.
 
 ### **`/api/v1/time_series`**
 
@@ -71,12 +74,6 @@ Any parameters included in the query other than the ones documented will also ma
   | Parameter  | Type   | Mandatory? | Example   |
   | ---------- | ------ | ---------- | --------- |
   | `FileType` | header | yes        | Confirmed |
-
-  <u>Notes:</u>
-
-  - Only CSV files are accepted.
-  - Any requests with CSV files containing duplicated dates will be rejected.
-  - This updates the existing data if there is such.
 
 ### **`/api/v1/daily_reports`**
 
