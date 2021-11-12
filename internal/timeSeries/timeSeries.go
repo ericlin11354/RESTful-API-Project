@@ -225,7 +225,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	// allows for direct access to dates
 	beginDate, endDate, beginDateIndex, err := getDates(result)
 	if err != nil {
-		utils.HandleErr(w, 500, errors.New("ParseDate() failed"))
+		utils.HandleErr(w, 500, err)
 		return
 	}
 
@@ -262,7 +262,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 		id, err := injectTimeSeries(Admin2Index, ts)
 		if err != nil {
-			utils.HandleErr(w, 500, errors.New("injectTimeSeries() failed"))
+			utils.HandleErr(w, 500, err)
 			return
 		}
 
@@ -273,12 +273,18 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 		_, err = InjectTimeSeriesDate(beginDate, endDate, beginDateIndex, result, ts, id, filetype)
 		if err != nil {
-			utils.HandleErr(w, 500, errors.New("injectTimeSeriesDate() failed"))
+			utils.HandleErr(w, 500, err)
 			return
 		}
-
 	}
 
+	// Write to respond body
+	if err := w.Write([]byte("Successfully create/update data to the system")); err != nil {
+		utils.HandleErr(w, 500, err)
+		return
+	}
+
+	w.WriteHeader(200)
 }
 
 func getDates(result []string) (time.Time, time.Time, int, error) {
