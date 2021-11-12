@@ -35,10 +35,8 @@ type TimeSeries struct {
 }
 
 type TimeSeriesDate struct {
-	Date      time.Time
-	Confirmed int
-	Death     int
-	Recovered int
+	date  time.Time
+	cases int
 }
 
 func Routes() chi.Router {
@@ -130,22 +128,20 @@ func List(w http.ResponseWriter, r *http.Request) {
 		// Reading each row
 		for rows.Next() {
 			tsd := TimeSeriesDate{}
-			var err error
-			if typeStr == "Confirmed" {
-				err = rows.Scan(&tsd.Date, &tsd.Confirmed)
-				ts.Confirmed[tsd.Date] = tsd.Confirmed
-			} else if typeStr == "Death" {
-				err = rows.Scan(&tsd.Date, &tsd.Death)
-				ts.Death[tsd.Date] = tsd.Death
-			} else {
-				err = rows.Scan(&tsd.Date, &tsd.Recovered)
-				ts.Recovered[tsd.Date] = tsd.Recovered
-			}
-
+			err := rows.Scan(&tsd.date, &tsd.cases)
 			if err != nil {
 				utils.HandleErr(w, 500, err)
 				return
 			}
+
+			if typeStr == "Confirmed" {
+				ts.Confirmed[tsd.date] = tsd.cases
+			} else if typeStr == "Death" {
+				ts.Death[tsd.date] = tsd.cases
+			} else {
+				ts.Recovered[tsd.date] = tsd.cases
+			}
+
 		}
 	}
 
@@ -471,11 +467,10 @@ func makeQuery(params map[string][]string) (string, string, bool, bool, int) {
 		}
 		formattedParams[param] = value
 	}
-
-	if _, ok := formattedParams["death"]; ok {
+	if v, ok := formattedParams["death"]; ok && v[0] != "false" {
 		death = true
 	}
-	if _, ok := formattedParams["recovered"]; ok {
+	if v, ok := formattedParams["recovered"]; ok && v[0] != "false" {
 		recovered = true
 	}
 
@@ -487,13 +482,7 @@ func makeQuery(params map[string][]string) (string, string, bool, bool, int) {
 	dateCounter := 0
 	whereCounter := 0 // counter for 'WHERE'
 	for param, value := range formattedParams {
-		// Displaying data
-		if param == "death" {
-			death = true
-			continue
-		}
-		if param == "recovered" {
-			recovered = true
+		if param == "death" || param == "recovered" {
 			continue
 		}
 

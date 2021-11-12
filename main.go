@@ -35,8 +35,8 @@ func main() {
 		}
 	})
 
-	r.Mount("/api/time_series", timeSeries.Routes())
-	r.Mount("/api/daily_reports", dailyReports.Routes())
+	r.Mount("/api/v1/time_series", timeSeries.Routes())
+	r.Mount("/api/v1/daily_reports", dailyReports.Routes())
 
 	log.Printf("Listening for requests on http://localhost:%s/", port)
 	log.Fatal(http.ListenAndServe(":"+port, r))
