@@ -161,12 +161,12 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	// Directly access column values
 	indices := map[string]int{
 		"admin2": -1,
-		"add1":   0,
-		"add2":   0,
-		"c":      0,
-		"d":      0,
-		"r":      0,
-		"a":      0,
+		"add1":   -1,
+		"add2":   -1,
+		"c":      -1,
+		"d":      -1,
+		"r":      -1,
+		"a":      -1,
 	}
 
 	for i := range result {
@@ -207,36 +207,43 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			utils.HandleErr(w, 400, err)
 			return
 		}
-
-		if indices["add1"] > 0 && result[indices["add1"]] != "" {
-			dr.Admin2 = result[indices["add1"]]
+		// Address1 exists
+		if indices["add1"] > -1 && result[indices["add1"]] != "" {
+			dr.Address1 = result[indices["add1"]]
 		} else {
-			indices["add1"] = 0
+			indices["add1"] = -1
 		}
 
-		dr.Address1 = result[indices["add1"]]
 		dr.Address2 = result[indices["add2"]]
 
-		dr.Confirmed, err = strconv.Atoi(result[indices["c"]])
+		var floatHolder float64
+		floatHolder, err = strconv.ParseFloat(result[indices["c"]], 64)
 		if err != nil {
 			notAllRead = true
 			continue
 		}
-		dr.Death, err = strconv.Atoi(result[indices["d"]])
+		dr.Confirmed = int(floatHolder)
+
+		floatHolder, err = strconv.ParseFloat(result[indices["d"]], 64)
 		if err != nil {
 			notAllRead = true
 			continue
 		}
-		dr.Active, err = strconv.Atoi(result[indices["a"]])
+		dr.Death = int(floatHolder)
+
+		floatHolder, err = strconv.ParseFloat(result[indices["r"]], 64)
 		if err != nil {
 			notAllRead = true
 			continue
 		}
-		dr.Recovered, err = strconv.Atoi(result[indices["r"]])
+		dr.Recovered = int(floatHolder)
+
+		floatHolder, err = strconv.ParseFloat(result[indices["a"]], 64)
 		if err != nil {
 			notAllRead = true
 			continue
 		}
+		dr.Active = int(floatHolder)
 
 		_, err := injectDailyReport(indices["admin2"], indices["add1"], dr)
 		if err != nil {
@@ -319,13 +326,13 @@ func injectDailyReport(Admin2Index int, Address1Index int, dr DailyReports) (boo
 	} else if (Admin2Index < 0 && AddressExists) || (Admin2Index >= 0 && !AddressExists) {
 		if Admin2Index >= 0 {
 			query = "INSERT INTO DailyReports(Date, Admin2, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?,?)"
-		} else if Address1Index > 0 {
+		} else if Address1Index > -1 {
 			query = "INSERT INTO DailyReports(ID, Date, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?,?)"
 		} else {
 			query = "INSERT INTO DailyReports(ID, Date, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?)"
 		}
 	} else if Admin2Index < 0 && !AddressExists {
-		if Address1Index == 0 {
+		if Address1Index == -1 {
 			query = "INSERT INTO DailyReports(Date, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?)"
 		} else {
 			query = "INSERT INTO DailyReports(Date, Address1, Address2, Confirmed, Death, Recovered, Active) VALUES(?,?,?,?,?,?,?)"
@@ -344,13 +351,13 @@ func injectDailyReport(Admin2Index int, Address1Index int, dr DailyReports) (boo
 	} else if (Admin2Index >= 0 && !AddressExists) || (Admin2Index < 0 && AddressExists) {
 		if Admin2Index >= 0 {
 			_, err = stmt.Exec(dr.Date, dr.Admin2, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
-		} else if Address1Index > 0 {
+		} else if Address1Index > -1 {
 			_, err = stmt.Exec(ID, dr.Date, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
 		} else {
 			_, err = stmt.Exec(ID, dr.Date, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
 		}
 	} else if Admin2Index < 0 && !AddressExists {
-		if Address1Index == 0 {
+		if Address1Index == -1 {
 			_, err = stmt.Exec(dr.Date, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
 		} else {
 			_, err = stmt.Exec(dr.Date, dr.Address1, dr.Address2, dr.Confirmed, dr.Death, dr.Recovered, dr.Active)
