@@ -140,6 +140,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 }
 
 func Create(w http.ResponseWriter, r *http.Request) {
+	notAllRead := false
 	date := r.Header.Get("Date")
 	_, err := utils.ParseDate(date)
 	if date == "" || err != nil {
@@ -158,30 +159,32 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Directly access column values
-	var Admin2Index int = -1
-	var Address1Index int
-	var Address2Index int
-	var ConfirmedIndex int
-	var DeathIndex int
-	var RecoveredIndex int
-	var ActiveIndex int
+	indices := map[string]int{
+		"admin2": -1,
+		"add1":   0,
+		"add2":   0,
+		"c":      0,
+		"d":      0,
+		"r":      0,
+		"a":      0,
+	}
 
 	for i := range result {
 		switch strings.ToLower(result[i]) {
 		case "admin2":
-			Admin2Index = i
+			indices["admin2"] = i
 		case "province_state":
-			Address1Index = i
+			indices["add1"] = i
 		case "country_region":
-			Address2Index = i
+			indices["add2"] = i
 		case "confirmed":
-			ConfirmedIndex = i
+			indices["c"] = i
 		case "deaths":
-			DeathIndex = i
+			indices["d"] = i
 		case "recovered":
-			RecoveredIndex = i
+			indices["r"] = i
 		case "active":
-			ActiveIndex = i
+			indices["a"] = i
 		}
 	}
 
@@ -193,40 +196,43 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		if Admin2Index >= 0 && strings.Compare(result[Admin2Index], "") != 0 { // Admin2 exists
-			dr.Admin2 = result[Admin2Index]
+		// Admin2 exists
+		if indices["admin2"] >= 0 && result[indices["admin2"]] != "" {
+			dr.Admin2 = result[indices["admin2"]]
 		} else {
-			Admin2Index = -1
+			indices["admin2"] = -1
 		}
 		dr.Date, err = utils.ParseDate(date)
 		if err != nil {
 			utils.HandleErr(w, 400, err)
 			return
 		}
-		dr.Address1 = result[Address1Index]
-		dr.Address2 = result[Address2Index]
-		dr.Confirmed, err = strconv.Atoi(result[ConfirmedIndex])
+
+		dr.Address1 = result[indices["add1"]]
+		dr.Address2 = result[indices["add2"]]
+
+		dr.Confirmed, err = strconv.Atoi(result[indices["c"]])
 		if err != nil {
-			utils.HandleErr(w, 400, err)
-			return
+			notAllRead = true
+			continue
 		}
-		dr.Death, err = strconv.Atoi(result[DeathIndex])
+		dr.Death, err = strconv.Atoi(result[indices["d"]])
 		if err != nil {
-			utils.HandleErr(w, 400, err)
-			return
+			notAllRead = true
+			continue
 		}
-		dr.Active, err = strconv.Atoi(result[ActiveIndex])
+		dr.Active, err = strconv.Atoi(result[indices["a"]])
 		if err != nil {
-			utils.HandleErr(w, 400, err)
-			return
+			notAllRead = true
+			continue
 		}
-		dr.Recovered, err = strconv.Atoi(result[RecoveredIndex])
+		dr.Recovered, err = strconv.Atoi(result[indices["r"]])
 		if err != nil {
-			utils.HandleErr(w, 400, err)
-			return
+			notAllRead = true
+			continue
 		}
 
-		_, err := injectDailyReport(Admin2Index, dr)
+		_, err := injectDailyReport(indices["admin2"], dr)
 		if err != nil {
 			utils.HandleErr(w, 500, err)
 			return
@@ -234,12 +240,19 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 	}
 	// Write to respond body
-	if _, err := w.Write([]byte("Successfully create/update data to the system")); err != nil {
-		utils.HandleErr(w, 500, err)
-		return
+	if notAllRead {
+		if _, err := w.Write([]byte("Input Error: could not parse some data into the system")); err != nil {
+			utils.HandleErr(w, 500, err)
+			return
+		}
+		w.WriteHeader(400)
+	} else {
+		if _, err := w.Write([]byte("Successfully create/update data to the system")); err != nil {
+			utils.HandleErr(w, 500, err)
+			return
+		}
+		w.WriteHeader(200)
 	}
-
-	w.WriteHeader(200)
 }
 
 func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
@@ -262,12 +275,14 @@ func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	defer rows.Close()
 	for rows.Next() {
 		err = rows.Scan(&ID, &Date, &Admin2, &Address1, &Address2, &Confirmed, &Death, &Recovered, &Active)
 		if err != nil {
 			return false, err
 		}
+
 		layout := "2006-1-2"
 		if Admin2.String == dr.Admin2 && Date.Format(layout) == dr.Date.Format(layout) &&
 			Address1.String == dr.Address1 && Address2 == dr.Address2 &&
@@ -277,9 +292,7 @@ func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
 		}
 	}
 
-	var (
-		query string
-	)
+	var query string
 	if AddressExists { //
 		_, err = db.Db.Exec(fmt.Sprintf(`
 		DELETE FROM DailyReports
@@ -289,6 +302,7 @@ func injectDailyReport(Admin2Index int, dr DailyReports) (bool, error) {
 			return false, err
 		}
 	}
+
 	/**
 	The following cases determine the number of fields that we inject:
 	1. We inject existing ID and Admin2 exists
@@ -398,7 +412,7 @@ func makeQuery(params map[string][]string) (string, int) {
 			}
 
 			if param == "id" {
-				if _, err := strconv.ParseInt(v, 10, 64); err != nil {
+				if _, err := strconv.Atoi(v); err != nil {
 					return "", 400
 				}
 			}

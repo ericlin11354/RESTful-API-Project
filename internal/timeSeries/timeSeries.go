@@ -581,7 +581,7 @@ func makeQuery(params map[string][]string) (string, string, bool, bool, int) {
 			}
 
 			if param == "id" {
-				if _, err := strconv.ParseInt(v, 10, 64); err != nil {
+				if _, err := strconv.Atoi(v); err != nil {
 					return "", "", false, false, 400
 				}
 				param = "TimeSeries.ID"
