@@ -741,7 +741,7 @@ func TestCreate(t *testing.T) {
 }
 
 func TestCreateBadHeader(t *testing.T) {
-	db.InitDb("testing")
+	db.InitDb("development")
 	//test no header
 
 	//Create body
@@ -807,7 +807,7 @@ func TestCreateBadHeader(t *testing.T) {
 }
 
 func TestCreateInvalidDateFormat(t *testing.T) {
-	db.InitDb("testing")
+	db.InitDb("development")
 	// rows, err := db.Db.Query(`SELECT * FROM TimeSeries"`)
 	// if err != nil {
 	// 	t.Errorf("Error ocurred when querying TimeSeries: %v", err)
@@ -859,7 +859,7 @@ func TestCreateInvalidDateFormat(t *testing.T) {
 func TestCreateDuplicatedDatesOneFile(t *testing.T) {
 	// Test 2 same dates in one file
 
-	db.InitDb("testing")
+	db.InitDb("development")
 
 	// Creating the body of the request
 	b := new(bytes.Buffer)

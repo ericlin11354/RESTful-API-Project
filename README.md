@@ -100,3 +100,10 @@ POST requests will also update the existing data in the system if such record ha
 # Test Coverage
 
 ![coverage](./coverage.png)
+
+# Credits
+
+I would like to officially give credits to my own brother, Bhurinat Wangsutthitham, who was a mentor for me, both mentally and knowledge-wise. \
+He, with or without knowing, allowed me to push through what I would call a tough time, perhaps the toughest yet for me during my time in this university.
+
+Thank you brother, and I miss you :>
