@@ -1,7 +1,9 @@
 package timeSeries
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/csv"
 	"encoding/json"
 	"io"
 	"net/http/httptest"
@@ -541,7 +543,6 @@ func TestListCSVRequests(t *testing.T) {
 	}
 }
 
-//test GetDates()
 func TestGetSingleDate(t *testing.T) {
 	arr := []string{"1/20/21"}
 	beginDate, endDate, beginDateIndex, err := getDates(arr)
@@ -649,4 +650,66 @@ func TestInjectExistingTimeSeries(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error occured when injecting existing record: %v", err)
 	}
+
+	// test existing Address2 but empty Admin2 and Address1
+	ts.Admin2 = ""
+	ts.Address1 = ""
+	ts.Address2 = "US"
+	id, err = injectTimeSeries(-1, ts)
+	if id == 1 {
+		t.Fatalf("Test failed: id should not be 1")
+	}
+
+	if err != nil {
+		t.Errorf("Error occured when injecting existing record: %v", err)
+	}
+}
+
+func TestCreate(t *testing.T) {
+	db.InitDb("testing")
+	// rows, err := db.Db.Query(`SELECT * FROM TimeSeries"`)
+	// if err != nil {
+	// 	t.Errorf("Error ocurred when querying TimeSeries: %v", err)
+	// }
+
+	// Creating the body of the request
+	b := new(bytes.Buffer)
+	writer := csv.NewWriter(b)
+
+	// Fill in the 2d-array
+	csvArr := [][]string{}
+	header := []string{
+		"Admin2", "Province/State", "Country/Region", "1/31/20",
+	}
+	csvArr = append(csvArr, header)
+	row := []string{
+		"", "Ontario", "Canada", "42069",
+	}
+	csvArr = append(csvArr, row)
+
+	// Write to buffer
+	if err := writer.WriteAll(csvArr); err != nil {
+		t.Errorf("Error while converting csvArr to bytes")
+	}
+
+	w := httptest.NewRecorder()
+
+	// curl --data-binary @timeSeries_test2.csv
+	r := httptest.NewRequest("POST", "http://example.com/foo", b)
+	r.Header.Set("FileType", "Confirmed")
+
+	// Goal: call Create()
+	Create(w, r)
+
+	List(w, r)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+
+	tsArr := []TimeSeries{}
+	err := json.Unmarshal(body, &tsArr)
+	if err != nil {
+		t.Errorf("Error during converting JSON: %v", err)
+	}
+
 }
