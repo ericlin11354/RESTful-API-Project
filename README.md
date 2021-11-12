@@ -1,7 +1,8 @@
-# CSC301 Assignment 2 Group 69
+# [CSC301 Assignment 2 Group 69](https://gitlab.com/csc301-assignments/a2)
 
-By Supanat Wangsutthitham and Eric Lin
-<br><br><br>
+### By Supanat Wangsutthitham and Eric Lin
+
+<br><br>
 
 # Pair Programming
 
