@@ -714,15 +714,169 @@ func TestCreate(t *testing.T) {
 }
 
 func TestCreateBadHeader(t *testing.T) {
-	// TODO: Test no header
+	db.InitDb("testing")
+	//test no header
 
-	// TODO: Test invaid header (optional)
+	//Create body
+	b := new(bytes.Buffer)
+	writer := csv.NewWriter(b)
+
+	//fill 2d array
+	csvArr := [][]string{}
+	header := []string{
+		"Admin2", "Province/State", "Country/Region", "1/31/20",
+	}
+	csvArr = append(csvArr, header)
+	row := []string{
+		"", "Ontario", "Canada", "42069",
+	}
+	csvArr = append(csvArr, row)
+
+	// Write to buffer
+	if err := writer.WriteAll(csvArr); err != nil {
+		t.Errorf("Error while converting csvArr to bytes")
+	}
+
+	w := httptest.NewRecorder()
+
+	r := httptest.NewRequest("POST", "http://example.com/foo", b)
+
+	// Goal: call Create()
+	Create(w, r)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+
+	expectedCode := 400
+	if resp.StatusCode != expectedCode {
+		t.Fatalf("Test failed: expected code %d, got %d", expectedCode, resp.StatusCode)
+	}
+
+	expectedBody := "Error status 400"
+	if string(body) != expectedBody {
+		t.Fatalf("Test failed: expected body %s, got %s", expectedBody, string(body))
+	}
+
+	w = httptest.NewRecorder()
+	r = httptest.NewRequest("POST", "http://example.com/foo", b)
+	//test invalid header
+	r.Header.Set("FileType", "Active")
+
+	// Goal: call Create()
+	Create(w, r)
+
+	resp = w.Result()
+	body, _ = io.ReadAll(resp.Body)
+
+	expectedCode = 400
+	if resp.StatusCode != expectedCode {
+		t.Fatalf("Test failed: expected code %d, got %d", expectedCode, resp.StatusCode)
+	}
+
+	expectedBody = "Error status 400"
+	if string(body) != expectedBody {
+		t.Fatalf("Test failed: expected body %s, got %s", expectedBody, string(body))
+	}
 }
 
 func TestCreateInvalidDateFormat(t *testing.T) {
-	// TODO: Test bad inputs
+	db.InitDb("testing")
+	// rows, err := db.Db.Query(`SELECT * FROM TimeSeries"`)
+	// if err != nil {
+	// 	t.Errorf("Error ocurred when querying TimeSeries: %v", err)
+	// }
+
+	// Creating the body of the request
+	b := new(bytes.Buffer)
+	writer := csv.NewWriter(b)
+
+	// Fill in the 2d-array
+	csvArr := [][]string{}
+	header := []string{
+		"Admin2", "Province/State", "Country/Region", "13/1/20",
+	}
+	csvArr = append(csvArr, header)
+	row := []string{
+		"", "Ontario", "Canada", "42069", "1337",
+	}
+	csvArr = append(csvArr, row)
+
+	// Write to buffer
+	if err := writer.WriteAll(csvArr); err != nil {
+		t.Errorf("Error while converting csvArr to bytes")
+	}
+
+	w := httptest.NewRecorder()
+
+	// curl --data-binary @timeSeries_test2.csv
+	r := httptest.NewRequest("POST", "http://example.com/foo", b)
+	r.Header.Set("FileType", "Confirmed")
+
+	// Goal: call Create()
+	Create(w, r)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+
+	expectedCode := 400
+	if resp.StatusCode != expectedCode {
+		t.Fatalf("Test failed: expected code %d, got %d", expectedCode, resp.StatusCode)
+	}
+
+	expectedBody := "Error status 400"
+	if string(body) != expectedBody {
+		t.Fatalf("Test failed: expected body %s, got %s", expectedBody, string(body))
+	}
 }
 
 func TestCreateDuplicatedDatesOneFile(t *testing.T) {
-	// TODO: Test 2 same dates in one file
+	// Test 2 same dates in one file
+
+	db.InitDb("testing")
+	// rows, err := db.Db.Query(`SELECT * FROM TimeSeries"`)
+	// if err != nil {
+	// 	t.Errorf("Error ocurred when querying TimeSeries: %v", err)
+	// }
+
+	// Creating the body of the request
+	b := new(bytes.Buffer)
+	writer := csv.NewWriter(b)
+
+	// Fill in the 2d-array
+	csvArr := [][]string{}
+	header := []string{
+		"Admin2", "Province/State", "Country/Region", "1/31/20", "1/31/20",
+	}
+	csvArr = append(csvArr, header)
+	row := []string{
+		"", "Ontario", "Canada", "42069", "1337",
+	}
+	csvArr = append(csvArr, row)
+
+	// Write to buffer
+	if err := writer.WriteAll(csvArr); err != nil {
+		t.Errorf("Error while converting csvArr to bytes")
+	}
+
+	w := httptest.NewRecorder()
+
+	// curl --data-binary @timeSeries_test2.csv
+	r := httptest.NewRequest("POST", "http://example.com/foo", b)
+	r.Header.Set("FileType", "Confirmed")
+
+	// Goal: call Create()
+	Create(w, r)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+
+	expectedCode := 400
+	if resp.StatusCode != expectedCode {
+		t.Fatalf("Test failed: expected code %d, got %d", expectedCode, resp.StatusCode)
+	}
+
+	expectedBody := "Error status 400"
+	if string(body) != expectedBody {
+		t.Fatalf("Test failed: expected body %s, got %s", expectedBody, string(body))
+	}
 }

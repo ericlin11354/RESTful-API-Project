@@ -236,10 +236,12 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	2. The only column values with '/' are dates.
 	*/
 	res, headerOK := utils.HeaderValidate(r.Header.Get("FileType"))
+	//fmt.Println(headerOK)
 	var filetype string
 	if headerOK {
 		filetype = strings.Title(res) // i.e. Recovered, Confirms, Deaths
 	} else {
+		utils.HandleErr(w, 400, errors.New("Bad Header Error"))
 		return
 	}
 	ts := TimeSeries{}
@@ -262,7 +264,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	// allows for direct access to dates
 	beginDate, endDate, beginDateIndex, err := getDates(result)
 	if err != nil {
-		utils.HandleErr(w, 500, err)
+		utils.HandleErr(w, 400, errors.New("Invalid Date Format Error"))
 		return
 	}
 
