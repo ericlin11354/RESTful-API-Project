@@ -391,6 +391,12 @@ func makeQuery(params map[string][]string) (string, int) {
 				}
 			}
 
+			if param == "id" {
+				if _, err := strconv.ParseInt(v, 10, 64); err != nil {
+					return "", 400
+				}
+			}
+
 			// Format first param and after
 			if whereCounter == 0 {
 				query += "WHERE " + param + op + value[i]

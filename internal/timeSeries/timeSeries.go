@@ -516,7 +516,7 @@ func makeQuery(params map[string][]string) (string, string, bool, bool, int) {
 	for param, value := range params {
 		param, valid := utils.ParamValidate(param)
 		if !valid {
-			return "", dates, false, false, 400
+			return "", "", false, false, 400
 		}
 		formattedParams[param] = value
 	}
@@ -529,7 +529,7 @@ func makeQuery(params map[string][]string) (string, string, bool, bool, int) {
 
 	// Mutually exclusive
 	if death && recovered {
-		return "", dates, false, false, 400
+		return "", "", false, false, 400
 	}
 
 	dateCounter := 0
@@ -584,6 +584,13 @@ func makeQuery(params map[string][]string) (string, string, bool, bool, int) {
 				} else {
 					value[i] = stringParams[param]
 				}
+			}
+
+			if param == "id" {
+				if _, err := strconv.ParseInt(v, 10, 64); err != nil {
+					return "", "", false, false, 400
+				}
+				param = "TimeSeries.ID"
 			}
 
 			// Format first param and after

@@ -234,7 +234,7 @@ func TestWriteRow(t *testing.T) {
 	}
 }
 
-func TestMakeQuery(t *testing.T) {
+func TestMakeQueryNoParams(t *testing.T) {
 	// Test no params
 	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
 
@@ -265,9 +265,27 @@ func TestMakeQuery(t *testing.T) {
 	if status != expectedStatus {
 		t.Fatalf("Test failed: expected %d, got %d", expectedStatus, status)
 	}
+}
 
-	// Test invalid params
-	r = httptest.NewRequest("GET", "http://example.com/foo?asd=asd", nil)
+func TestMakeQueryInvalidParams(t *testing.T) {
+	// Test invalid key-value param
+	r := httptest.NewRequest("GET", "http://example.com/foo?asd=asd", nil)
+	_, _, _, _, status := makeQuery(r.URL.Query())
+	expectedStatus := 400
+	if status != expectedStatus {
+		t.Fatalf("Test failed: expected %d, got %d", expectedStatus, status)
+	}
+
+	// Test bad date format
+	r = httptest.NewRequest("GET", "http://example.com/foo?date=12345", nil)
+	_, _, _, _, status = makeQuery(r.URL.Query())
+	expectedStatus = 400
+	if status != expectedStatus {
+		t.Fatalf("Test failed: expected %d, got %d", expectedStatus, status)
+	}
+
+	// Test id bad format
+	r = httptest.NewRequest("GET", "http://example.com/foo?id=abc", nil)
 	_, _, _, _, status = makeQuery(r.URL.Query())
 	expectedStatus = 400
 	if status != expectedStatus {
@@ -281,50 +299,47 @@ func TestMakeQuery(t *testing.T) {
 	if status != expectedStatus {
 		t.Fatalf("Test failed: expected %d, got %d", expectedStatus, status)
 	}
+}
 
+func TestMakeQueryOneParamOneValue(t *testing.T) {
 	// Test death
-	r = httptest.NewRequest("GET", "http://example.com/foo?Death", nil)
+	r := httptest.NewRequest("GET", "http://example.com/foo?Death", nil)
 
-	_, _, death, recovered, _ = makeQuery(r.URL.Query())
+	_, _, death, recovered, _ := makeQuery(r.URL.Query())
 	expectedDeath, expectedRecovered := true, false
 	if !death || recovered {
 		t.Fatalf("Test failed: expected %v and %v, got %v and %v",
 			expectedDeath, expectedRecovered, death, recovered)
 	}
 
-	// Test state and country params
-	r = httptest.NewRequest(
+	// Test recovered
+	r = httptest.NewRequest("GET", "http://example.com/foo?recovered", nil)
+
+	_, _, death, recovered, _ = makeQuery(r.URL.Query())
+	expectedDeath, expectedRecovered = false, true
+	if death || !recovered {
+		t.Fatalf("Test failed: expected %v and %v, got %v and %v",
+			expectedDeath, expectedRecovered, death, recovered)
+	}
+}
+
+func TestMakeQueryMultParamsOneValue(t *testing.T) {
+	// Test id, admin2, province, and region params
+	r := httptest.NewRequest(
 		"GET",
-		"http://example.com/foo?country=canada,us&state=ontario,ohio",
+		"http://example.com/foo?id=1&region=foo&province=bar&admin2=uwu",
 		nil)
 
-	query, _, _, _, _ = makeQuery(r.URL.Query())
+	query, _, _, _, _ := makeQuery(r.URL.Query())
 	query = strings.TrimSpace(query)
 
 	lines := strings.Split(query, "\n")
 	lastline := strings.TrimSpace(lines[len(lines)-1])
 
-	checker := "address2='canada' OR address2='us'"
+	checker := "TimeSeries.ID=1"
 	if !strings.Contains(lastline, checker) {
 		t.Fatalf("Test failed: query does not contain %s", checker)
 	}
-
-	checker = "address1='ontario' OR address1='ohio'"
-	if !strings.Contains(lastline, checker) {
-		t.Fatalf("Test failed: query does not contain %s", checker)
-	}
-
-	// Test admin2, province, and region params
-	r = httptest.NewRequest(
-		"GET",
-		"http://example.com/foo?region=foo&province=bar&admin2=uwu",
-		nil)
-
-	query, _, _, _, _ = makeQuery(r.URL.Query())
-	query = strings.TrimSpace(query)
-
-	lines = strings.Split(query, "\n")
-	lastline = strings.TrimSpace(lines[len(lines)-1])
 
 	checker = "admin2='uwu'"
 	if !strings.Contains(lastline, checker) {
@@ -340,22 +355,47 @@ func TestMakeQuery(t *testing.T) {
 	if !strings.Contains(lastline, checker) {
 		t.Fatalf("Test failed: query does not contain %s", checker)
 	}
+}
 
-	// Test date params
-	r = httptest.NewRequest(
+func TestMakeQueryOneParamMultvalues(t *testing.T) {
+	r := httptest.NewRequest(
 		"GET",
 		"http://example.com/foo?date=1/2/30,4/5/60",
 		nil)
 
-	_, dates, _, _, _ = makeQuery(r.URL.Query())
+	_, dates, _, _, _ := makeQuery(r.URL.Query())
 
-	checker = "date=\"2030/1/2\""
+	checker := "date=\"2030/1/2\""
 	if !strings.Contains(dates, checker) {
-		t.Fatalf("Test failed: expect %s, does not have %s", dates, checker)
+		t.Fatalf("Test failed: query does not contain %s", checker)
 	}
 
 	checker = "date=\"2060/4/5\""
 	if !strings.Contains(dates, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+}
+
+func TestMakeQueryMultParamsMultValues(t *testing.T) {
+	// Test state and country params
+	r := httptest.NewRequest(
+		"GET",
+		"http://example.com/foo?country=canada,us&state=ontario,ohio",
+		nil)
+
+	query, _, _, _, _ := makeQuery(r.URL.Query())
+	query = strings.TrimSpace(query)
+
+	lines := strings.Split(query, "\n")
+	lastline := strings.TrimSpace(lines[len(lines)-1])
+
+	checker := "address2='canada' OR address2='us'"
+	if !strings.Contains(lastline, checker) {
+		t.Fatalf("Test failed: query does not contain %s", checker)
+	}
+
+	checker = "address1='ontario' OR address1='ohio'"
+	if !strings.Contains(lastline, checker) {
 		t.Fatalf("Test failed: query does not contain %s", checker)
 	}
 
@@ -365,11 +405,11 @@ func TestMakeQuery(t *testing.T) {
 		"http://example.com/foo?from=1/2/30,4/5/60&to=1/2/30,4/5/60",
 		nil)
 
-	_, dates, _, _, _ = makeQuery(r.URL.Query())
+	_, dates, _, _, _ := makeQuery(r.URL.Query())
 
 	checker = "date>=\"2030/1/2\""
 	if !strings.Contains(dates, checker) {
-		t.Fatalf("Test failed: expect %s, does not have %s", dates, checker)
+		t.Fatalf("Test failed: query does not contain %s", checker)
 	}
 
 	checker = "date>=\"2060/4/5\""
@@ -379,7 +419,7 @@ func TestMakeQuery(t *testing.T) {
 
 	checker = "date<=\"2030/1/2\""
 	if !strings.Contains(dates, checker) {
-		t.Fatalf("Test failed: expect %s, does not have %s", dates, checker)
+		t.Fatalf("Test failed: query does not contain %s", checker)
 	}
 
 	checker = "date<=\"2060/4/5\""
@@ -388,8 +428,8 @@ func TestMakeQuery(t *testing.T) {
 	}
 }
 
-func TestListDefault(t *testing.T) {
-	db.InitDb("testing")
+func TestListNoParams(t *testing.T) {
+	db.InitDb("development")
 	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w := httptest.NewRecorder()
 	List(w, r)
@@ -425,7 +465,7 @@ func TestListDefault(t *testing.T) {
 }
 
 func TestListWithParams(t *testing.T) {
-	db.InitDb("testing")
+	db.InitDb("development")
 	r := httptest.NewRequest("GET", "http://example.com/foo?country=us,canada&from=1/1/20", nil)
 	w := httptest.NewRecorder()
 	List(w, r)
@@ -479,7 +519,7 @@ func TestListWithParams(t *testing.T) {
 }
 
 func TestListBadRequests(t *testing.T) {
-	db.InitDb("testing")
+	db.InitDb("development")
 	r := httptest.NewRequest("GET", "http://example.com/foo?asdfjk", nil)
 	w := httptest.NewRecorder()
 	List(w, r)
@@ -498,7 +538,7 @@ func TestListBadRequests(t *testing.T) {
 }
 
 func TestListCSVRequests(t *testing.T) {
-	db.InitDb("testing")
+	db.InitDb("development")
 	r := httptest.NewRequest("GET", "http://example.com/foo", nil)
 	r.Header.Set("Accept", "text/csv")
 	w := httptest.NewRecorder()
@@ -655,7 +695,7 @@ func TestInjectTimeSeriesExistingTimeSeries(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	db.InitDb("testing")
+	db.InitDb("development")
 	// rows, err := db.Db.Query(`SELECT * FROM TimeSeries"`)
 	// if err != nil {
 	// 	t.Errorf("Error ocurred when querying TimeSeries: %v", err)

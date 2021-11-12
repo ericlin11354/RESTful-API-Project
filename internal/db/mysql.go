@@ -14,15 +14,29 @@ import (
 
 var Db *sql.DB
 
+// The first index specifies the env to read from
+// including "development" and "local".
+// If second string exists and equal to "testing",
+// the function will never connect to the db.
+//
+// Default to production env with no/invalid inputs
 func InitDb(stage ...string) {
 	env := []string{"DB_USER", "DB_PASS", "DB_HOST", "DB_PORT", "DB_NAME"}
 	if len(stage) > 0 {
-		if stage[0] == "testing" {
+		if stage[0] == "development" {
 			env = []string{"DB_TEST_USER", "DB_TEST_PASS",
 				"DB_TEST_HOST", "DB_TEST_PORT", "DB_TEST_NAME"}
 		} else if stage[0] == "local" {
 			env = []string{"DB_LOCAL_USER", "DB_LOCAL_PASS",
 				"DB_LOCAL_HOST", "DB_LOCAL_PORT", "DB_LOCAL_NAME"}
+		}
+	}
+
+	// Testing connection; never actually connect to db
+	testing := false
+	if len(stage) > 1 {
+		if stage[1] == "testing" {
+			testing = true
 		}
 	}
 
@@ -51,7 +65,10 @@ func InitDb(stage ...string) {
 	}
 
 	// Successfully intialized connection to db
-	Db = db
+	if !testing {
+		Db = db
+	}
+
 	print := fmt.Sprintf("Connected to @%s:%s/%s", dbTCPHost, dbPort, dbName)
 	fmt.Println(print)
 }
